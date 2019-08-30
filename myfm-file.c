@@ -54,8 +54,8 @@ static void myfm_file_from_g_file_callback (GObject *g_file, GAsyncResult *res, 
     if (error) {
         /* do something */  }
     else {
-        ((MyFMFile*) myfm_file)->g_file_info = info;
-        ((MyFMFile*) myfm_file)->display_name = g_file_info_get_display_name (info);
+        ((MyFMFile*) myfm_file)->IO_g_file_info = info;
+        ((MyFMFile*) myfm_file)->IO_display_name = g_file_info_get_display_name (info);
 
         // TODO: EMIT SOME SIGNAL TO INFORM THAT FILE IS INITIALIZED AND CAN BE TOUCHED
 
@@ -63,7 +63,7 @@ static void myfm_file_from_g_file_callback (GObject *g_file, GAsyncResult *res, 
 }
 
 /* despite the function being async, only the fields g_file_info and display_name
- * require asynchronous IO to be initialized. the other fields can thus be accessed
+ * require asynchronous IO to be initialized. thus, the other fields can be accessed
  * safely instantly after this function is called. */
 void myfm_file_from_g_file_async (MyFMFile *myfm_file, GFile *g_file)
 {
@@ -79,9 +79,9 @@ void myfm_file_from_g_file_async (MyFMFile *myfm_file, GFile *g_file)
     else
         ((MyFMFile*) myfm_file)->is_directory = FALSE;
 
-    /* set fields that require async IO to be initialized to NULL before we initialize them */
-    myfm_file->g_file_info = NULL;
-    myfm_file->display_name = NULL;
+    /* set fields that require async IO to NULL before we initialize them */
+    myfm_file->IO_g_file_info = NULL;
+    myfm_file->IO_display_name = NULL;
 
     g_file_query_info_async (g_file, "*", G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS,
                              G_PRIORITY_DEFAULT, NULL, myfm_file_from_g_file_callback, myfm_file);

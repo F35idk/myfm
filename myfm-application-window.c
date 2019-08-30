@@ -22,6 +22,14 @@ static void myfm_application_window_class_init (MyFMApplicationWindowClass *cls)
 {
 }
 
+static void delete_treeview (GtkTreeView *treeview)
+{
+}
+
+static void setup_treeview (void)
+{
+}
+
 MyFMApplicationWindow *myfm_application_window_new (MyFMApplication *app)
 {
     return g_object_new (MYFM_APPLICATION_WINDOW_TYPE, "application", app, NULL);

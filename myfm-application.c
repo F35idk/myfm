@@ -10,6 +10,8 @@
 #include "myfm-file.h"
 #include "myfm-utils.h"
 
+// TODO: REFACTOR - REMOVE AMOUNT OF "STATIC", NON-INSTANCE / NON-CLASS FUNCTIONS
+
 struct _MyFMApplication
 {
     GtkApplication parent;
@@ -21,14 +23,16 @@ static void myfm_application_init (MyFMApplication *app)
 {
 }
 
+// TODO: IF WE SET ANY DATA ON THE GOBJECTS, DONT FORGET TO FREE IT
+
 static void myfm_filename_to_renderer (GtkTreeViewColumn *tree_column, GtkCellRenderer *cell,
                                        GtkTreeModel *tree_model, GtkTreeIter *iter, gpointer user_data)
 {
     gpointer myfm_file;
 
-    gtk_tree_model_get (tree_model, iter, 0, &myfm_file, -1); // out myfm_file, pass by value
+    gtk_tree_model_get (tree_model, iter, 0, &myfm_file, -1); /* out myfm_file, pass by value */
     if (myfm_file)
-        g_object_set(cell, "text", ((MyFMFile *) myfm_file)->display_name, NULL);
+        g_object_set (cell, "text", ((MyFMFile *) myfm_file)->IO_display_name, NULL);
 }
 
 static void insert_column (GtkTreeView *treeview)
@@ -36,7 +40,7 @@ static void insert_column (GtkTreeView *treeview)
     GtkCellRenderer *renderer;
     GtkTreeViewColumn *col;
 
-    renderer = gtk_cell_renderer_text_new (); // TODO: GLOBAL
+    renderer = gtk_cell_renderer_text_new ();
     col = gtk_tree_view_column_new_with_attributes ("col", renderer, NULL);
     gtk_tree_view_column_set_cell_data_func (col, renderer, myfm_filename_to_renderer, NULL, NULL);
     gtk_tree_view_column_set_resizable (col, TRUE);
@@ -45,7 +49,7 @@ static void insert_column (GtkTreeView *treeview)
     gtk_tree_view_append_column (treeview, col);
 }
 
-static void open_dir (MyFMFile *directory, GtkBox *window_box);
+static void open_dir (GFile *g_directory, GtkBox *window_box);
 
 static void on_dir_select (GtkTreeView *treeview, GtkTreePath *path,
                            GtkTreeViewColumn *column, gpointer window_box)
@@ -56,19 +60,19 @@ static void on_dir_select (GtkTreeView *treeview, GtkTreePath *path,
 
     tree_model = gtk_tree_view_get_model (treeview);
     gtk_tree_model_get_iter (tree_model, &iter, path);
-    gtk_tree_model_get (tree_model, &iter, 0, &myfm_file, -1); // out myfm_file, pass by value
+    gtk_tree_model_get (tree_model, &iter, 0, &myfm_file, -1);
     if (myfm_file)
-        open_dir ((MyFMFile*) myfm_file, GTK_BOX (window_box));
+        open_dir (((MyFMFile*) myfm_file)->g_file, GTK_BOX (window_box));
 }
 
-static void open_dir (MyFMFile *directory, GtkBox *window_box)
+static void open_dir (GFile *g_directory, GtkBox *window_box)
 {
     GtkTreeView *treeview;
     GtkListStore *store;
-    guint padding = 0; // TODO: STORE SOMEWHERE ELSE!!!!!!
+    guint padding = 0; // TODO: STORE SOMEWHERE ELSE!!!!!! IN THE WINDOW CLASS?????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
 
     store = gtk_list_store_new (1, G_TYPE_POINTER);
-    children_to_store_async (directory->g_file, store);
+    children_to_store_async (g_directory, store);
 
     // children_to_store_finished.connect ( clear_unused_treeviews );
     // children_to_store_finished.connect ( setup_treeview );
@@ -76,10 +80,12 @@ static void open_dir (MyFMFile *directory, GtkBox *window_box)
 
 
     treeview = (GtkTreeView*) gtk_tree_view_new_with_model (GTK_TREE_MODEL (store));
+    g_object_unref (store); /* treeview increases refcount, so we dont need to keep our reference */
     insert_column (treeview);
     gtk_tree_view_set_headers_visible (treeview, TRUE);
     g_signal_connect (treeview, "row-activated", G_CALLBACK (on_dir_select), (gpointer) window_box);
     gtk_box_pack_start (window_box, GTK_WIDGET (treeview), FALSE, FALSE, padding);
+    /* TODO: CONNECT THIS GUY TO STORE_FINISHED */
     gtk_widget_show (GTK_WIDGET (treeview));
 }
 
@@ -90,7 +96,6 @@ static void myfm_application_new_window (MyFMApplication *app)
     GtkBox *box;
     MyFMApplicationWindow *win;
     gint spacing = 0;
-    guint padding = 0;
 
     box = (GtkBox*) gtk_box_new (GTK_ORIENTATION_HORIZONTAL, spacing);
 
@@ -100,10 +105,7 @@ static void myfm_application_new_window (MyFMApplication *app)
     gtk_widget_show_all (GTK_WIDGET (win));
     gtk_window_present (GTK_WINDOW (win));
 
-    MyFMFile *home = malloc (sizeof (MyFMFile));
-    myfm_file_from_path_async (home, "/home/f35/Documents"); // out home
-
-    open_dir (home, box);
+    open_dir (g_file_new_for_path ("/home/f35/Documents"), box);
 }
 
 /* application launched with no args */
@@ -151,7 +153,7 @@ static void myfm_application_finalize (GObject *object)
 
 static void myfm_application_class_init (MyFMApplicationClass *cls)
 {
-    /* replacing overridden functions in class object? i think that's what we're doing */
+    /* replacing overridden functions in parent class object? i think that's what we're doing */
     GApplicationClass *app_cls = G_APPLICATION_CLASS (cls);
     GObjectClass *object_cls = G_OBJECT_CLASS (cls);
 

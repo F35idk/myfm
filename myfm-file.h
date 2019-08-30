@@ -7,13 +7,17 @@
 
 #include <gtk/gtk.h>
 
+/* struct for associating g_files with their respective g_file_monitors, g_file_infos and
+ * other convenient properties, as well as ensuring that these update and refresh
+ * themselves when needed */
 typedef struct MyFMFile {
     GFile *g_file;
-    GFileInfo *g_file_info; // TODO: REMOVE
     GFileMonitor *g_file_monitor;
-    const char *display_name;
     gboolean is_open;
     gboolean is_directory;
+    /* these fields require IO to be initialized */
+    GFileInfo *IO_g_file_info;
+    const char *IO_display_name;
 } MyFMFile;
 
 void myfm_file_from_g_file_async (MyFMFile *myfm_file, GFile *g_file);
