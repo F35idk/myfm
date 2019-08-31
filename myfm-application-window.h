@@ -13,5 +13,6 @@ G_DECLARE_FINAL_TYPE(MyFMApplicationWindow, myfm_application_window, MYFM, APPLI
 
 MyFMApplicationWindow *myfm_application_window_new (MyFMApplication *app);
 void myfm_application_window_open (MyFMApplicationWindow *win, GFile *file);
+void myfm_application_window_new_tab (MyFMApplicationWindow *win);
 
 #endif //__MYFM_APPLICATION_WINDOW_H

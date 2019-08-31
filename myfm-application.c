@@ -9,10 +9,11 @@
 #include "myfm-application-window.h"
 #include "myfm-file.h"
 #include "myfm-utils.h"
+#include "myfm-signals.h"
 
 struct _MyFMApplication
 {
-    GtkApplication parent;
+    GtkApplication parent_instance;
 };
 
 G_DEFINE_TYPE (MyFMApplication, myfm_application, GTK_TYPE_APPLICATION);
@@ -60,13 +61,13 @@ static void myfm_application_finalize (GObject *object)
     G_OBJECT_CLASS (myfm_application_parent_class)->finalize (object);
 }
 
-static void myfm_application_init (MyFMApplication *app)
+static void myfm_application_init (MyFMApplication *self)
 {
 }
 
 static void myfm_application_class_init (MyFMApplicationClass *cls)
 {
-    /* replacing overridden functions in parent class object? i think that's what we're doing */
+    /* replacing overridden functions in parent class objects */
     GApplicationClass *app_cls = G_APPLICATION_CLASS (cls);
     GObjectClass *object_cls = G_OBJECT_CLASS (cls);
 
@@ -76,12 +77,13 @@ static void myfm_application_class_init (MyFMApplicationClass *cls)
     object_cls->finalize = myfm_application_finalize;
 }
 
+/* TODO: should only contain g_object_new? */
 MyFMApplication *myfm_application_new (void)
 {
     MyFMApplication *app;
 
     g_set_application_name ("myfm");
-    app = g_object_new (MYFM_APPLICATION_TYPE, "application-id", "org.gtk.exampleapp", // TODO: replace the id!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    app = g_object_new (MYFM_APPLICATION_TYPE, "application-id", "com.github.F35idk.myfm",
                         "flags", G_APPLICATION_HANDLES_OPEN, NULL);
 
     return app;

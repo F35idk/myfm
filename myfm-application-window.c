@@ -11,22 +11,26 @@
 
 struct _MyFMApplicationWindow
 {
-    GtkApplicationWindow parent;
+    GtkApplicationWindow parent_instance;
+    GtkBox *window_box; /* TODO: private? */
+    guint box_padding; /* TODO: private? */
+    gint box_spacing; /* TODO: private? */
+
 };
 
 G_DEFINE_TYPE (MyFMApplicationWindow, myfm_application_window, GTK_TYPE_APPLICATION_WINDOW);
 
-/* forward declaration of non-class/instance functions*/
+/* forward declarations */
 static void on_file_select (GtkTreeView *treeview, GtkTreePath *path,
                             GtkTreeViewColumn *column, gpointer window_box);
 static void myfm_filename_data_func (GtkTreeViewColumn *tree_column, GtkCellRenderer *cell,
                                        GtkTreeModel *tree_model, GtkTreeIter *iter, gpointer user_data);
 static void insert_column (GtkTreeView *treeview);
-static void open_dir (GFile *g_file_dir, GtkBox *window_box);
+static void myfm_application_window_open_dir (MyFMApplicationWindow *self, GFile *g_file_dir);
 
 
 static void on_file_select (GtkTreeView *treeview, GtkTreePath *path,
-                            GtkTreeViewColumn *column, gpointer window_box)
+                            GtkTreeViewColumn *column, gpointer win)
 {
     gpointer myfm_file;
     GtkTreeModel *tree_model;
@@ -36,7 +40,7 @@ static void on_file_select (GtkTreeView *treeview, GtkTreePath *path,
     gtk_tree_model_get_iter (tree_model, &iter, path);
     gtk_tree_model_get (tree_model, &iter, 0, &myfm_file, -1);
     if (myfm_file)
-        open_dir (((MyFMFile*) myfm_file)->g_file, GTK_BOX (window_box));
+        myfm_application_window_open_dir ((MyFMApplicationWindow*) win, ((MyFMFile*) myfm_file)->g_file);
 }
 
 static void myfm_filename_data_func (GtkTreeViewColumn *tree_column, GtkCellRenderer *cell,
@@ -63,7 +67,7 @@ static void insert_column (GtkTreeView *treeview)
     gtk_tree_view_append_column (treeview, col);
 }
 
-static void open_dir (GFile *g_file_dir, GtkBox *window_box)
+static void myfm_application_window_open_dir (MyFMApplicationWindow *self, GFile *g_file_dir)
 {
     GFileType filetype = g_file_query_file_type (g_file_dir, G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS, NULL);
     if (filetype != G_FILE_TYPE_DIRECTORY)
@@ -71,7 +75,6 @@ static void open_dir (GFile *g_file_dir, GtkBox *window_box)
 
     GtkTreeView *treeview;
     GtkListStore *store;
-    guint padding = 0; /* TODO: INSTANCE VAR */
 
     store = gtk_list_store_new (1, G_TYPE_POINTER);
     children_to_store_async (g_file_dir, store);
@@ -85,38 +88,42 @@ static void open_dir (GFile *g_file_dir, GtkBox *window_box)
     g_object_unref (store); /* treeview increases refcount, so we dont need to keep our reference */
     insert_column (treeview);
     gtk_tree_view_set_headers_visible (treeview, TRUE);
-    g_signal_connect (treeview, "row-activated", G_CALLBACK (on_file_select), (gpointer) window_box);
+    g_signal_connect (treeview, "row-activated", G_CALLBACK (on_file_select), (gpointer) self);
 
-    gtk_box_pack_start (window_box, GTK_WIDGET (treeview), FALSE, FALSE, padding);
+    gtk_box_pack_start (self->window_box, GTK_WIDGET (treeview), FALSE, FALSE, self->box_padding);
     /* TODO: CONNECT THIS GUY TO STORE_FINISHED */
     gtk_widget_show (GTK_WIDGET (treeview));
 }
 
-void myfm_application_window_new_tab (MyFMApplicationWindow *win)
+void myfm_application_window_open (MyFMApplicationWindow *self, GFile *file)
+{
+    gtk_container_add (GTK_CONTAINER (self), GTK_WIDGET (self->window_box));
+    gtk_widget_show (GTK_WIDGET (self->window_box));
+
+    myfm_application_window_open_dir (self, file); // TODO: IF FILE ISN'T DIR THEN APP WONT OPEN, FIX THIS
+}
+
+void myfm_application_window_new_tab (MyFMApplicationWindow *self)
 {
 }
 
-static void myfm_application_window_init (MyFMApplicationWindow *win)
+static void myfm_application_window_init (MyFMApplicationWindow *self)
 {
+    /* set up instance vars */
+    self->box_padding = 0;
+    self->box_spacing = 0;
+    self->window_box = (GtkBox*) gtk_box_new (GTK_ORIENTATION_HORIZONTAL, self->box_spacing);
 }
 
 static void myfm_application_window_class_init (MyFMApplicationWindowClass *cls)
 {
+    /*
+    GtkWidgetClass *widget_cls = GTK_WIDGET_CLASS (cls);
+    GObjectClass *object_cls = G_OBJECT_CLASS (cls);
+     */
 }
 
 MyFMApplicationWindow *myfm_application_window_new (MyFMApplication *app)
 {
     return g_object_new (MYFM_APPLICATION_WINDOW_TYPE, "application", app, NULL);
-}
-
-void myfm_application_window_open (MyFMApplicationWindow *win, GFile *file)
-{
-    GtkBox *box;
-    gint spacing = 0; // TODO: INSTANCE VAR
-
-    box = (GtkBox*) gtk_box_new (GTK_ORIENTATION_HORIZONTAL, spacing);
-    gtk_container_add (GTK_CONTAINER (win), GTK_WIDGET (box));
-    gtk_widget_show (GTK_WIDGET (box));
-
-    open_dir (file, box); // TODO: IF FILE ISN'T DIR THEN APP WONT OPEN, FIX THIS
 }
