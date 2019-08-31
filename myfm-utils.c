@@ -14,7 +14,7 @@
 * --> next_files_callback */
 
 /* simple struct for passing multiple variables through our callbacks */
-struct g_file_and_list_store {
+struct GFileAndListStore {
     GFile *g_file;
     GtkListStore *store;
 };
@@ -37,7 +37,7 @@ static void next_files_callback (GObject *file_enumerator, GAsyncResult *result,
     else if (directory_list == NULL) {
         /* done listing, nothing left to add to store */
         g_object_unref (file_enumerator);
-        g_object_unref (((struct g_file_and_list_store*) file_and_store)->g_file);
+        g_object_unref (((struct GFileAndListStore*) file_and_store)->g_file);
         free (file_and_store);
 
         // TODO: EMIT SIGNAL
@@ -51,22 +51,27 @@ static void next_files_callback (GObject *file_enumerator, GAsyncResult *result,
         GtkListStore *store;
         GtkTreeIter iter;
 
-        parent_file = ((struct g_file_and_list_store*) file_and_store)->g_file;
-        store = ((struct g_file_and_list_store*) file_and_store)->store;
+        parent_file = ((struct GFileAndListStore*) file_and_store)->g_file;
+        store = ((struct GFileAndListStore*) file_and_store)->store;
 
         while (current_node) {
             child_info = current_node->data;
             const char *child_name = g_file_info_get_display_name (child_info);
             GFile *child_g_file = g_file_get_child_for_display_name (parent_file, child_name, &error);
+            if (error) {
+                g_object_unref(child_info); /* TODO: KEEP TABS */
+                continue;
+            }
+            else {
+                MyFMFile *child_myfm_file = malloc (sizeof (MyFMFile));
+                myfm_file_from_g_file_async(child_myfm_file, child_g_file);
 
-            MyFMFile *child_myfm_file = malloc (sizeof (MyFMFile));
-            myfm_file_from_g_file_async (child_myfm_file, child_g_file);
+                gtk_list_store_append(store, &iter); /* out iter */
+                gtk_list_store_set(store, &iter, 0, (gpointer) child_myfm_file, -1);
 
-            gtk_list_store_append (store, &iter); /* out iter */
-            gtk_list_store_set (store, &iter, 0, (gpointer) child_myfm_file, -1);
-
-            current_node = current_node->next;
-            g_object_unref (child_info); /* TODO: KEEP TABS */
+                current_node = current_node->next;
+                g_object_unref(child_info); /* TODO: KEEP TABS */
+            }
         }
         g_file_enumerator_next_files_async (G_FILE_ENUMERATOR (file_enumerator),
                                            num_files, G_PRIORITY_HIGH, NULL,
@@ -92,19 +97,14 @@ static void enum_finished_callback (GObject *directory, GAsyncResult *result, gp
 
 void children_to_store_async (GFile *directory, GtkListStore *store)
 {
-    GFileType filetype = g_file_query_file_type (directory, G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS, NULL);
-    if (filetype != G_FILE_TYPE_DIRECTORY)
-        return; /* TODO: G_CRITICAL? SOMETHING */
-    else {
-        struct g_file_and_list_store *file_and_store = malloc (sizeof (struct g_file_and_list_store));
-        file_and_store->g_file = directory;
-        file_and_store->store = store;
+    struct GFileAndListStore *file_and_store = malloc (sizeof (struct GFileAndListStore));
+    file_and_store->g_file = directory;
+    file_and_store->store = store;
 
-        g_file_enumerate_children_async (directory,
-                                         "*",
-                                         G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS,
-                                         G_PRIORITY_HIGH, NULL,
-                                         enum_finished_callback,
-                                         file_and_store);
-    }
+    g_file_enumerate_children_async (directory,
+                                     "*",
+                                     G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS,
+                                     G_PRIORITY_HIGH, NULL,
+                                     enum_finished_callback,
+                                     file_and_store);
 }

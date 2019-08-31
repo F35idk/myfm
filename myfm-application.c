@@ -10,8 +10,6 @@
 #include "myfm-file.h"
 #include "myfm-utils.h"
 
-// TODO: REFACTOR - REMOVE AMOUNT OF "STATIC", NON-INSTANCE / NON-CLASS FUNCTIONS
-
 struct _MyFMApplication
 {
     GtkApplication parent;
@@ -19,105 +17,16 @@ struct _MyFMApplication
 
 G_DEFINE_TYPE (MyFMApplication, myfm_application, GTK_TYPE_APPLICATION);
 
-static void myfm_application_init (MyFMApplication *app)
-{
-}
-
-// TODO: IF WE SET ANY DATA ON THE GOBJECTS, DONT FORGET TO FREE IT
-
-static void myfm_filename_to_renderer (GtkTreeViewColumn *tree_column, GtkCellRenderer *cell,
-                                       GtkTreeModel *tree_model, GtkTreeIter *iter, gpointer user_data)
-{
-    gpointer myfm_file;
-
-    gtk_tree_model_get (tree_model, iter, 0, &myfm_file, -1); /* out myfm_file, pass by value */
-    if (myfm_file)
-        g_object_set (cell, "text", ((MyFMFile *) myfm_file)->IO_display_name, NULL);
-}
-
-static void insert_column (GtkTreeView *treeview)
-{
-    GtkCellRenderer *renderer;
-    GtkTreeViewColumn *col;
-
-    renderer = gtk_cell_renderer_text_new ();
-    col = gtk_tree_view_column_new_with_attributes ("col", renderer, NULL);
-    gtk_tree_view_column_set_cell_data_func (col, renderer, myfm_filename_to_renderer, NULL, NULL);
-    gtk_tree_view_column_set_resizable (col, TRUE);
-    gtk_tree_view_column_set_expand (col, TRUE);
-
-    gtk_tree_view_append_column (treeview, col);
-}
-
-static void open_dir (GFile *g_directory, GtkBox *window_box);
-
-static void on_dir_select (GtkTreeView *treeview, GtkTreePath *path,
-                           GtkTreeViewColumn *column, gpointer window_box)
-{
-    gpointer myfm_file;
-    GtkTreeModel *tree_model;
-    GtkTreeIter iter;
-
-    tree_model = gtk_tree_view_get_model (treeview);
-    gtk_tree_model_get_iter (tree_model, &iter, path);
-    gtk_tree_model_get (tree_model, &iter, 0, &myfm_file, -1);
-    if (myfm_file)
-        open_dir (((MyFMFile*) myfm_file)->g_file, GTK_BOX (window_box));
-}
-
-static void open_dir (GFile *g_directory, GtkBox *window_box)
-{
-    GtkTreeView *treeview;
-    GtkListStore *store;
-    guint padding = 0; // TODO: STORE SOMEWHERE ELSE!!!!!! IN THE WINDOW CLASS?????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
-
-    store = gtk_list_store_new (1, G_TYPE_POINTER);
-    children_to_store_async (g_directory, store);
-
-    // children_to_store_finished.connect ( clear_unused_treeviews );
-    // children_to_store_finished.connect ( setup_treeview );
-    //      (above funcs should auto-disconnect themselves after finishing)
-
-
-    treeview = (GtkTreeView*) gtk_tree_view_new_with_model (GTK_TREE_MODEL (store));
-    g_object_unref (store); /* treeview increases refcount, so we dont need to keep our reference */
-    insert_column (treeview);
-    gtk_tree_view_set_headers_visible (treeview, TRUE);
-    g_signal_connect (treeview, "row-activated", G_CALLBACK (on_dir_select), (gpointer) window_box);
-    gtk_box_pack_start (window_box, GTK_WIDGET (treeview), FALSE, FALSE, padding);
-    /* TODO: CONNECT THIS GUY TO STORE_FINISHED */
-    gtk_widget_show (GTK_WIDGET (treeview));
-}
-
-/* to be used in activate and open virtual functions */
-/* TODO: possibly useless */
-static void myfm_application_new_window (MyFMApplication *app)
-{
-    GtkBox *box;
-    MyFMApplicationWindow *win;
-    gint spacing = 0;
-
-    box = (GtkBox*) gtk_box_new (GTK_ORIENTATION_HORIZONTAL, spacing);
-
-    win = myfm_application_window_new (app);
-    gtk_container_add (GTK_CONTAINER (win), GTK_WIDGET (box));
-
-    gtk_widget_show_all (GTK_WIDGET (win));
-    gtk_window_present (GTK_WINDOW (win));
-
-    open_dir (g_file_new_for_path ("/home/f35/Documents"), box);
-}
-
 /* application launched with no args */
 static void myfm_application_activate (GApplication *app)
 {
-    /* TODO: not sure we need our own GtkApplicationWindow subclass, but we'll keep it for now */
-    // MyFMApplicationWindow *win;
+    MyFMApplicationWindow *win;
 
-    // win = myfm_application_window_new (MYFM_APPLICATION (app));
-    myfm_application_new_window (MYFM_APPLICATION (app));
+    /* should default to home directory, currently that's just my home though */
+    win = myfm_application_window_new (MYFM_APPLICATION (app));
+    myfm_application_window_open (win, g_file_new_for_path ("/home/f35/"));
 
-
+    gtk_window_present (GTK_WINDOW (win));
 }
 
 /* application launched with args */
@@ -149,6 +58,10 @@ static void myfm_application_finalize (GObject *object)
 {
     /* chaining up */
     G_OBJECT_CLASS (myfm_application_parent_class)->finalize (object);
+}
+
+static void myfm_application_init (MyFMApplication *app)
+{
 }
 
 static void myfm_application_class_init (MyFMApplicationClass *cls)

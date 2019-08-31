@@ -10,6 +10,7 @@
 /* struct for associating g_files with their respective g_file_monitors, g_file_infos and
  * other convenient properties, as well as ensuring that these update and refresh
  * themselves when needed */
+/* TODO: make boxed type? not sure */
 typedef struct MyFMFile {
     GFile *g_file;
     GFileMonitor *g_file_monitor;
