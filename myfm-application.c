@@ -53,6 +53,8 @@ static void myfm_application_startup (GApplication *app)
 {
     /* chaining up */
     G_APPLICATION_CLASS (myfm_application_parent_class)->startup (app);
+
+    setup_signals ();
 }
 
 static void myfm_application_finalize (GObject *object)
