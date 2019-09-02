@@ -22,10 +22,14 @@ G_DEFINE_TYPE (MyFMApplication, myfm_application, GTK_TYPE_APPLICATION);
 static void myfm_application_activate (GApplication *app)
 {
     MyFMApplicationWindow *win;
+    GFile *home;
 
     /* should default to home directory, currently that's just my home though */
+    home = g_file_new_for_path ("/home/f35/");
     win = myfm_application_window_new (MYFM_APPLICATION (app));
-    myfm_application_window_open (win, g_file_new_for_path ("/home/f35/"));
+
+    myfm_application_window_open (win, home);
+    g_object_unref (home);
 
     gtk_window_present (GTK_WINDOW (win));
 }
@@ -34,6 +38,7 @@ static void myfm_application_activate (GApplication *app)
 static void myfm_application_open (GApplication *app, GFile **files,
                                    gint n_files, const gchar *hint)
 {
+    /* TODO: fill this in with our own code, replace the example-placeholder stuff */
     GList *windows;
     MyFMApplicationWindow *win;
 
@@ -54,7 +59,8 @@ static void myfm_application_startup (GApplication *app)
     /* chaining up */
     G_APPLICATION_CLASS (myfm_application_parent_class)->startup (app);
 
-    setup_signals ();
+    // setup_signals ();
+    g_set_application_name ("myfm");
 }
 
 static void myfm_application_finalize (GObject *object)
@@ -73,20 +79,15 @@ static void myfm_application_class_init (MyFMApplicationClass *cls)
     GApplicationClass *app_cls = G_APPLICATION_CLASS (cls);
     GObjectClass *object_cls = G_OBJECT_CLASS (cls);
 
+    app_cls->startup = myfm_application_startup;
     app_cls->activate = myfm_application_activate;
     app_cls->open = myfm_application_open;
 
     object_cls->finalize = myfm_application_finalize;
 }
 
-/* TODO: should only contain g_object_new? */
 MyFMApplication *myfm_application_new (void)
 {
-    MyFMApplication *app;
-
-    g_set_application_name ("myfm");
-    app = g_object_new (MYFM_APPLICATION_TYPE, "application-id", "com.github.F35idk.myfm",
+    return g_object_new (MYFM_APPLICATION_TYPE, "application-id", "com.github.F35idk.myfm",
                         "flags", G_APPLICATION_HANDLES_OPEN, NULL);
-
-    return app;
 }

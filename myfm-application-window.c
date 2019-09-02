@@ -12,10 +12,13 @@
 struct _MyFMApplicationWindow
 {
     GtkApplicationWindow parent_instance;
-    GtkBox *window_box; /* TODO: private? */
-    guint box_padding; /* TODO: private? */
-    gint box_spacing; /* TODO: private? */
 
+    gint default_height;
+    gint default_width;
+    /* TODO: some of these could be static vars instead */
+    GtkBox *window_box;
+    guint box_padding;
+    gint box_spacing;
 };
 
 G_DEFINE_TYPE (MyFMApplicationWindow, myfm_application_window, GTK_TYPE_APPLICATION_WINDOW);
@@ -87,29 +90,57 @@ static void myfm_application_window_open_dir (MyFMApplicationWindow *self, GFile
     treeview = (GtkTreeView*) gtk_tree_view_new_with_model (GTK_TREE_MODEL (store));
     g_object_unref (store); /* treeview increases refcount, so we dont need to keep our reference */
     insert_column (treeview);
-    gtk_tree_view_set_headers_visible (treeview, TRUE);
+    gtk_tree_view_set_headers_visible (treeview, FALSE);
+    gtk_tree_view_set_rubber_banding (treeview, TRUE); /* not effective yet */
     g_signal_connect (treeview, "row-activated", G_CALLBACK (on_file_select), (gpointer) self);
 
-    gtk_box_pack_start (self->window_box, GTK_WIDGET (treeview), FALSE, FALSE, self->box_padding);
+    gtk_box_pack_start (self->window_box, GTK_WIDGET (treeview), TRUE, TRUE, self->box_padding);
     /* TODO: CONNECT THIS GUY TO STORE_FINISHED */
     gtk_widget_show (GTK_WIDGET (treeview));
 }
 
 void myfm_application_window_open (MyFMApplicationWindow *self, GFile *file)
 {
-    gtk_container_add (GTK_CONTAINER (self), GTK_WIDGET (self->window_box));
-    gtk_widget_show (GTK_WIDGET (self->window_box));
+    // todo: THIS SHOULDN'T BE DONE IN THE WINDOW_OPEN FUNC, THE WINDOW OPEN FUNC SHOULD JUST BE THE OPEN_DIR FUNC, NO NEED TO DISTINGUISH!
+    // todo: THIS SHOULD PROBABLY INSTEAD JUST BE DONE IN SOME CONSTRUCTOR / CONSTRUCTED / INIT FUNC OR SOMETHING
+
+
+    // gtk_container_add (GTK_CONTAINER (self), GTK_WIDGET (self->window_box));
+    // gtk_widget_show (GTK_WIDGET (self->window_box));
 
     myfm_application_window_open_dir (self, file); // TODO: IF FILE ISN'T DIR THEN APP WONT OPEN, FIX THIS
 }
 
-void myfm_application_window_new_tab (MyFMApplicationWindow *self)
+static void myfm_application_window_destroy (GtkWidget *widget)
 {
+    /* chaining up */
+    GTK_WIDGET_CLASS (myfm_application_window_parent_class)->destroy (widget);
+}
+
+static void myfm_application_window_dispose (GObject *object)
+{
+    /* chaining up */
+    G_OBJECT_CLASS (myfm_application_window_parent_class)->dispose (object);
+}
+
+static void myfm_application_window_constructed (GObject *object)
+{
+    MyFMApplicationWindow *self;
+
+    G_OBJECT_CLASS (myfm_application_window_parent_class)->constructed (object);
+
+    // eventually, these might be contained in other "setup" funcs
+    self = MYFM_APPLICATION_WINDOW (object);
+    gtk_window_set_default_size (GTK_WINDOW (self), self->default_width, self->default_height);
+    gtk_container_add (GTK_CONTAINER (self), GTK_WIDGET (self->window_box));
+    gtk_widget_show (GTK_WIDGET (self->window_box));
 }
 
 static void myfm_application_window_init (MyFMApplicationWindow *self)
 {
     /* set up instance vars */
+    self->default_height = 550; // todo: WE NEED TO APPLY THESE DEFAULTS SOMEWHERE DURING CONSTRUCTION!!!!!!!!!!!!!!!!!
+    self->default_width = 890;
     self->box_padding = 0;
     self->box_spacing = 0;
     self->window_box = (GtkBox*) gtk_box_new (GTK_ORIENTATION_HORIZONTAL, self->box_spacing);
@@ -117,10 +148,14 @@ static void myfm_application_window_init (MyFMApplicationWindow *self)
 
 static void myfm_application_window_class_init (MyFMApplicationWindowClass *cls)
 {
-    /*
+
     GtkWidgetClass *widget_cls = GTK_WIDGET_CLASS (cls);
     GObjectClass *object_cls = G_OBJECT_CLASS (cls);
-     */
+
+    object_cls->dispose = myfm_application_window_dispose;
+    object_cls->constructed = myfm_application_window_constructed;
+
+    widget_cls->destroy = myfm_application_window_destroy;
 }
 
 MyFMApplicationWindow *myfm_application_window_new (MyFMApplication *app)

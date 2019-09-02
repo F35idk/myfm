@@ -37,12 +37,9 @@ static void next_files_callback (GObject *file_enumerator, GAsyncResult *result,
     else if (directory_list == NULL) {
         /* done listing, nothing left to add to store */
         g_object_unref (file_enumerator);
-        g_object_unref (((struct GFileAndListStore*) file_and_store)->g_file); /* TODO: KEEP TABS */
+        /* g_object_unref ((((struct GFileAndListStore*) file_and_store)->g_file)); // DONT UNREF PARENT FILE */
         free (file_and_store);
-
-        // g_signal_emit (((struct GFileAndListStore*) file_and_store)->store, )
-        // TODO: EMIT SIGNAL
-
+        // TODO: emit signal on store?
         return;
     }
     else {
@@ -59,20 +56,18 @@ static void next_files_callback (GObject *file_enumerator, GAsyncResult *result,
             child_info = current_node->data;
             const char *child_name = g_file_info_get_display_name (child_info);
             GFile *child_g_file = g_file_get_child_for_display_name (parent_file, child_name, &error);
+
             if (error) {
                 g_object_unref (child_info); /* TODO: KEEP TABS */
-                continue;
+                g_object_unref (child_g_file);
+                g_error_free (error);
             }
             else {
-                MyFMFile *child_myfm_file = malloc (sizeof (MyFMFile));
-                myfm_file_from_g_file_async (child_myfm_file, child_g_file);
-
+                MyFMFile *child_myfm_file = myfm_file_new_without_io (child_g_file, child_info, child_name);
                 gtk_list_store_append (store, &iter); /* out iter */
                 gtk_list_store_set (store, &iter, 0, (gpointer) child_myfm_file, -1);
-
-                current_node = current_node->next;
-                g_object_unref (child_info); /* TODO: KEEP TABS */
             }
+            current_node = current_node->next;
         }
         g_file_enumerator_next_files_async (G_FILE_ENUMERATOR (file_enumerator),
                                            num_files, G_PRIORITY_HIGH, NULL,
@@ -87,8 +82,10 @@ static void enum_finished_callback (GObject *directory, GAsyncResult *result, gp
     GError *error = NULL;
 
     file_enumerator = g_file_enumerate_children_finish (G_FILE (directory), result, &error);
-    if (error)
+    if (error) {
+        g_error_free (error);
         return; /* TODO: G_CRITICAL? SOMETHING */
+    }
     else {
         g_file_enumerator_next_files_async (file_enumerator, num_files,
                                            G_PRIORITY_HIGH, NULL,

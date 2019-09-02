@@ -23,7 +23,7 @@ static void on_file_change (GFileMonitor *monitor, GFile *file, GFile *other_fil
 
 /* function for setting up a g_file_monitor on a myfm_file->g_file */
 // TODO: put in myfm_file_initialize func or something
-static void myfm_file_init_monitor (MyFMFile *myfm_file, GFile *g_file)
+static void init_file_monitor (MyFMFile *myfm_file, GFile *g_file)
 {
     GFileMonitor *monitor;
     GError *error = NULL;
@@ -36,7 +36,7 @@ static void myfm_file_init_monitor (MyFMFile *myfm_file, GFile *g_file)
     }
 
     if (error) {
-     /* do something */  }
+     /* free stuff */  }
     else {
         myfm_file->g_file_monitor = monitor;
         // TODO: signalsssssssssssssssssssssssssss
@@ -44,7 +44,7 @@ static void myfm_file_init_monitor (MyFMFile *myfm_file, GFile *g_file)
 
 }
 
-static void myfm_file_from_g_file_callback (GObject *g_file, GAsyncResult *res, gpointer myfm_file)
+static void io_fields_callback (GObject *g_file, GAsyncResult *res, gpointer myfm_file)
 {
     GFileInfo *info;
     GError *error = NULL;
@@ -52,7 +52,10 @@ static void myfm_file_from_g_file_callback (GObject *g_file, GAsyncResult *res, 
     info = g_file_query_info_finish (G_FILE (g_file), res, &error);
 
     if (error) {
-        /* do something */  }
+        g_object_unref (info);
+        g_error_free (error);
+        /* do something */
+    }
     else {
         ((MyFMFile*) myfm_file)->IO_g_file_info = info;
         ((MyFMFile*) myfm_file)->IO_display_name = g_file_info_get_display_name (info);
@@ -62,10 +65,7 @@ static void myfm_file_from_g_file_callback (GObject *g_file, GAsyncResult *res, 
     }
 }
 
-/* despite the function being async, only the fields g_file_info and display_name
- * require asynchronous IO to be initialized. thus, the other fields can be accessed
- * safely instantly after this function is called. */
-void myfm_file_from_g_file_async (MyFMFile *myfm_file, GFile *g_file)
+static void init_fields_without_io (MyFMFile *myfm_file, GFile *g_file)
 {
     GFileType filetype;
 
@@ -78,13 +78,33 @@ void myfm_file_from_g_file_async (MyFMFile *myfm_file, GFile *g_file)
         ((MyFMFile*) myfm_file)->is_directory = TRUE;
     else
         ((MyFMFile*) myfm_file)->is_directory = FALSE;
+}
+
+/* despite the function being async, only the fields g_file_info and display_name
+ * require asynchronous IO to be initialized. thus, the other fields can be accessed
+ * safely instantly after this function is called. */
+void myfm_file_from_g_file_async (MyFMFile *myfm_file, GFile *g_file)
+{
+    init_fields_without_io (myfm_file, g_file);
 
     /* set fields that require async IO to NULL before we initialize them */
     myfm_file->IO_g_file_info = NULL;
     myfm_file->IO_display_name = NULL;
 
     g_file_query_info_async (g_file, "*", G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS,
-                             G_PRIORITY_DEFAULT, NULL, myfm_file_from_g_file_callback, myfm_file);
+                             G_PRIORITY_DEFAULT, NULL, io_fields_callback, myfm_file);
+}
+
+MyFMFile *myfm_file_new_without_io (GFile *g_file, GFileInfo *file_info, const char* display_name)
+{
+    MyFMFile *myfm_file;
+
+    myfm_file = malloc (sizeof (MyFMFile));
+    init_fields_without_io (myfm_file, g_file);
+    myfm_file->IO_g_file_info = file_info;
+    myfm_file->IO_display_name = display_name;
+
+    return myfm_file;
 }
 
 void myfm_file_from_path_async (MyFMFile *myfm_file, const char *path)

@@ -27,4 +27,6 @@ void myfm_file_from_path_async (MyFMFile *myfm_file, const char *path);
 
 void myfm_file_free (MyFMFile *myfm_file);
 
+MyFMFile *myfm_file_new_without_io (GFile *g_file, GFileInfo *file_info, const char *display_name);
+
 #endif //MYFM_MYFM_FILE_H
