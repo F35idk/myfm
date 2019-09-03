@@ -31,13 +31,15 @@ static void next_files_callback (GObject *file_enumerator, GAsyncResult *result,
     if (error) {
         g_critical ("Unable to add files to list, error: %s", error->message); // TODO: programmer error or? read error handling docs
         g_object_unref (file_enumerator);
+        g_object_unref ((((struct GFileAndListStore*) file_and_store)->g_file));
+        free (file_and_store);
         g_error_free (error);
         return;
     }
     else if (directory_list == NULL) {
         /* done listing, nothing left to add to store */
         g_object_unref (file_enumerator);
-        /* g_object_unref ((((struct GFileAndListStore*) file_and_store)->g_file)); // DONT UNREF PARENT FILE */
+        g_object_unref ((((struct GFileAndListStore*) file_and_store)->g_file)); /* decrement refcount once we're done */
         free (file_and_store);
         // TODO: emit signal on store?
         return;
@@ -84,6 +86,8 @@ static void enum_finished_callback (GObject *directory, GAsyncResult *result, gp
     file_enumerator = g_file_enumerate_children_finish (G_FILE (directory), result, &error);
     if (error) {
         g_error_free (error);
+        g_object_unref ((((struct GFileAndListStore*) file_and_store)->g_file)); /* decrement refcount */
+        free (file_and_store);
         return; /* TODO: G_CRITICAL? SOMETHING */
     }
     else {
@@ -98,6 +102,13 @@ void children_to_store_async (GFile *directory, GtkListStore *store)
     struct GFileAndListStore *file_and_store = malloc (sizeof (struct GFileAndListStore));
     file_and_store->g_file = directory;
     file_and_store->store = store;
+
+    /* in some situations we might unref the g_file passed to this function shortly
+     * after it is called. in the case that our IO takes long to complete, this
+     * means there is a possibility that our g_file is freed before our callbacks
+     * are invoked. to prevent this, we increment our g_file's refcount to
+     * keep it alive temporarily */
+    g_object_ref (directory);
 
     g_file_enumerate_children_async (directory,
                                      "*",
