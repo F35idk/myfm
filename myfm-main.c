@@ -4,7 +4,7 @@
 
 #include <gtk/gtk.h>
 
-#include "myfm-application-window.h"
+#include "myfm-window.h"
 #include "myfm-application.h"
 
 int main(int argc, char *argv[])

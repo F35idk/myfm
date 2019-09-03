@@ -6,7 +6,7 @@
 #include <gio/gio.h>
 
 #include "myfm-application.h"
-#include "myfm-application-window.h"
+#include "myfm-window.h"
 #include "myfm-file.h"
 #include "myfm-utils.h"
 #include "myfm-signals.h"
@@ -21,15 +21,14 @@ G_DEFINE_TYPE (MyFMApplication, myfm_application, GTK_TYPE_APPLICATION);
 /* application launched with no args */
 static void myfm_application_activate (GApplication *app)
 {
-    MyFMApplicationWindow *win;
-    GFile *home;
+    MyFMWindow *win;
+    GFile_autoptr *home = NULL;
 
     /* should default to home directory, currently that's just my home though */
     home = g_file_new_for_path ("/home/f35/");
-    win = myfm_application_window_new (MYFM_APPLICATION (app));
+    win = myfm_window_new (MYFM_APPLICATION (app));
 
-    myfm_application_window_open (win, home);
-    g_object_unref (home);
+    myfm_window_open_async (win, home);
 
     gtk_window_present (GTK_WINDOW (win));
 }
@@ -39,19 +38,21 @@ static void myfm_application_open (GApplication *app, GFile **files,
                                    gint n_files, const gchar *hint)
 {
     /* TODO: fill this in with our own code, replace the example-placeholder stuff */
+    /*
     GList *windows;
-    MyFMApplicationWindow *win;
+    MyFMWindow *win;
 
     windows = gtk_application_get_windows (GTK_APPLICATION (app));
     if (windows)
-        win = MYFM_APPLICATION_WINDOW (windows->data);
+        win = MYFM_WINDOW (windows->data);
     else
-        win = myfm_application_window_new (MYFM_APPLICATION (app));
+        win = myfm_window_new (MYFM_APPLICATION (app));
 
     for (int i = 0; i < n_files; i++)
-        myfm_application_window_open (win, files[i]);
+        myfm_window_open_async (win, files[i]);
 
     gtk_window_present (GTK_WINDOW (win));
+     */
 }
 
 static void myfm_application_startup (GApplication *app)
