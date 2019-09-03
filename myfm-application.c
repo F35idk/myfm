@@ -22,7 +22,7 @@ G_DEFINE_TYPE (MyFMApplication, myfm_application, GTK_TYPE_APPLICATION);
 static void myfm_application_activate (GApplication *app)
 {
     MyFMWindow *win;
-    GFile_autoptr *home = NULL;
+    GFile_autoptr home = NULL;
 
     /* should default to home directory, currently that's just my home though */
     home = g_file_new_for_path ("/home/f35/");

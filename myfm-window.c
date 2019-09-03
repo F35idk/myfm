@@ -23,7 +23,7 @@ struct _MyFMWindow
 
 G_DEFINE_TYPE (MyFMWindow, myfm_window, GTK_TYPE_APPLICATION_WINDOW);
 
-/* forward declare to allow mutual recursion (on_file_select and this func depend on each other) */
+/* forward declare to allow mutual recursion (on_file_select and opn_dir depend on each other) */
 static void myfm_window_open_dir_async (MyFMWindow *self, GFile *g_file_dir);
 
 /* TODO: belongs in our future treeview subclass */
@@ -134,7 +134,6 @@ static void myfm_window_constructed (GObject *object)
     MyFMWindow *self;
 
     G_OBJECT_CLASS (myfm_window_parent_class)->constructed (object);
-
 
     self = MYFM_WINDOW (object);
     gtk_window_set_default_size (GTK_WINDOW (self), self->default_width, self->default_height);

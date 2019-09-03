@@ -25,11 +25,11 @@ static int num_files = 32; // TODO: HOW MANY?????
  * function calls itself until all children have been listed */
 static void next_files_callback (GObject *file_enumerator, GAsyncResult *result, gpointer file_and_store)
 {
-    GError *error = NULL;
+    GError *error = NULL; /* no auto_ptr on this one, free manually */
     GList *directory_list = g_file_enumerator_next_files_finish (G_FILE_ENUMERATOR (file_enumerator),
                                                                 result, &error);
     if (error) {
-        g_critical ("Unable to add files to list, error: %s", error->message); // TODO: programmer error or? read error handling docs
+        g_critical ("Unable to add files to list, error: %s", error->message); // TODO: read error handling docs
         g_object_unref (file_enumerator);
         g_object_unref ((((struct GFileAndListStore*) file_and_store)->g_file));
         free (file_and_store);
@@ -60,11 +60,13 @@ static void next_files_callback (GObject *file_enumerator, GAsyncResult *result,
             GFile *child_g_file = g_file_get_child_for_display_name (parent_file, child_name, &error);
 
             if (error) {
-                g_object_unref (child_info); /* TODO: KEEP TABS */
+                g_object_unref (child_info);
                 g_object_unref (child_g_file);
                 g_error_free (error);
+                error = NULL; /* TODO: KEEP TABS */
             }
             else {
+                puts (child_name);
                 MyFMFile *child_myfm_file = myfm_file_new_without_io (child_g_file, child_info, child_name);
                 gtk_list_store_append (store, &iter); /* out iter */
                 gtk_list_store_set (store, &iter, 0, (gpointer) child_myfm_file, -1);
@@ -80,20 +82,21 @@ static void next_files_callback (GObject *file_enumerator, GAsyncResult *result,
 
 static void enum_finished_callback (GObject *directory, GAsyncResult *result, gpointer file_and_store)
 {
-    GFileEnumerator *file_enumerator;
-    GError *error = NULL;
+    GFileEnumerator_autoptr file_enumerator = NULL;
+    GError_autoptr error = NULL;
 
     file_enumerator = g_file_enumerate_children_finish (G_FILE (directory), result, &error);
     if (error) {
-        g_error_free (error);
         g_object_unref ((((struct GFileAndListStore*) file_and_store)->g_file)); /* decrement refcount */
         free (file_and_store);
-        return; /* TODO: G_CRITICAL? SOMETHING */
+        /* TODO: g_critical? */
+        return;
     }
     else {
         g_file_enumerator_next_files_async (file_enumerator, num_files,
                                            G_PRIORITY_HIGH, NULL,
                                            next_files_callback, file_and_store);
+        file_enumerator = NULL; /* set local pointer to NULL to prevent auto_unref before callback is invoked */
     }
 }
 
@@ -107,7 +110,7 @@ void children_to_store_async (GFile *directory, GtkListStore *store)
      * after it is called. in the case that our IO takes long to complete, this
      * means there is a possibility that our g_file is freed before our callbacks
      * are invoked. to prevent this, we increment our g_file's refcount to
-     * keep it alive temporarily */
+     * keep it alive at least temporarily */
     g_object_ref (directory);
 
     g_file_enumerate_children_async (directory,
