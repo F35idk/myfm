@@ -41,7 +41,9 @@ static void next_files_callback (GObject *file_enumerator, GAsyncResult *result,
         g_object_unref (file_enumerator);
         g_object_unref ((((struct GFileAndListStore*) file_and_store)->g_file)); /* decrement refcount once we're done */
         free (file_and_store);
-        // TODO: emit signal on store?
+
+        g_signal_emit_by_name (((struct GFileAndListStore*) file_and_store)->store, "children_added");
+
         return;
     }
     else {

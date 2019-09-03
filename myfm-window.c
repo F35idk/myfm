@@ -67,11 +67,11 @@ static void insert_column (GtkTreeView *treeview)
     gtk_tree_view_append_column (treeview, col);
 }
 
-static void myfm_window_open_file_async (MyFMWindow *self, GFile *g_file)
+static void show_treeview_callback (gpointer store, gpointer treeview)
 {
+    gtk_widget_show (GTK_WIDGET (treeview));
 }
 
-/* usually doesn't return before async IO is finished, but it might, so keep this in mind */
 static void myfm_window_open_dir_async (MyFMWindow *self, GFile *g_file_dir)
 {
     GtkTreeView *treeview;
@@ -80,11 +80,7 @@ static void myfm_window_open_dir_async (MyFMWindow *self, GFile *g_file_dir)
     store = gtk_list_store_new (1, G_TYPE_POINTER);
     children_to_store_async (g_file_dir, store);
 
-    // children_to_store_finished.connect ( clear_unused_treeviews );
-    // children_to_store_finished.connect ( setup_treeview );
-    //      (above funcs should auto-disconnect themselves after finishing)
-
-
+    /* subclass gtk_treeview and encapsulate this */
     treeview = (GtkTreeView*) gtk_tree_view_new_with_model (GTK_TREE_MODEL (store));
     g_object_unref (store); /* treeview increases refcount, so we dont need to keep our reference */
     insert_column (treeview);
@@ -93,8 +89,13 @@ static void myfm_window_open_dir_async (MyFMWindow *self, GFile *g_file_dir)
     g_signal_connect (treeview, "row-activated", G_CALLBACK (on_file_select), (gpointer) self);
 
     gtk_box_pack_start (self->window_box, GTK_WIDGET (treeview), TRUE, TRUE, self->box_padding);
-    /* TODO: CONNECT THIS GUY TO STORE_FINISHED */
-    gtk_widget_show (GTK_WIDGET (treeview));
+
+    /* wait until all files are in store to show our treeview */
+    g_signal_connect (store, "children_added", G_CALLBACK (show_treeview_callback), treeview);
+}
+
+static void myfm_window_open_file_async (MyFMWindow *self, GFile *g_file)
+{
 }
 
 void myfm_window_open_async (MyFMWindow *self, GFile *file)
