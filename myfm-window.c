@@ -67,14 +67,15 @@ static void insert_column (GtkTreeView *treeview)
     gtk_tree_view_append_column (treeview, col);
 }
 
-static void show_treeview_callback (gpointer store, gpointer treeview)
+static void show_treeview_callback (gpointer store, gpointer treeview_scroll)
 {
-    gtk_widget_show (GTK_WIDGET (treeview));
+    gtk_widget_show_all (GTK_WIDGET (treeview_scroll));
 }
 
 static void myfm_window_open_dir_async (MyFMWindow *self, GFile *g_file_dir)
 {
     GtkTreeView *treeview;
+    GtkScrolledWindow *treeview_scroll;
     GtkListStore *store;
 
     store = gtk_list_store_new (1, G_TYPE_POINTER);
@@ -88,10 +89,13 @@ static void myfm_window_open_dir_async (MyFMWindow *self, GFile *g_file_dir)
     gtk_tree_view_set_rubber_banding (treeview, TRUE); /* not effective yet */
     g_signal_connect (treeview, "row-activated", G_CALLBACK (on_file_select), (gpointer) self);
 
-    gtk_box_pack_start (self->window_box, GTK_WIDGET (treeview), TRUE, TRUE, self->box_padding);
+   treeview_scroll = (GtkScrolledWindow*) gtk_scrolled_window_new (NULL, NULL);
+   gtk_container_add (GTK_CONTAINER (treeview_scroll), GTK_WIDGET (treeview));
+
+   gtk_box_pack_start (self->window_box, GTK_WIDGET (treeview_scroll), TRUE, TRUE, self->box_padding);
 
     /* wait until all files are in store to show our treeview */
-    g_signal_connect (store, "children_added", G_CALLBACK (show_treeview_callback), treeview);
+    g_signal_connect (store, "children_added", G_CALLBACK (show_treeview_callback), treeview_scroll);
 }
 
 static void myfm_window_open_file_async (MyFMWindow *self, GFile *g_file)

@@ -37,22 +37,11 @@ static void myfm_application_activate (GApplication *app)
 static void myfm_application_open (GApplication *app, GFile **files,
                                    gint n_files, const gchar *hint)
 {
-    /* TODO: fill this in with our own code, replace the example-placeholder stuff */
-    /*
-    GList *windows;
-    MyFMWindow *win;
-
-    windows = gtk_application_get_windows (GTK_APPLICATION (app));
-    if (windows)
-        win = MYFM_WINDOW (windows->data);
-    else
-        win = myfm_window_new (MYFM_APPLICATION (app));
-
-    for (int i = 0; i < n_files; i++)
-        myfm_window_open_async (win, files[i]);
-
-    gtk_window_present (GTK_WINDOW (win));
-     */
+    for (int i = 0; i < n_files; i++) {
+        MyFMWindow *win = myfm_window_new(MYFM_APPLICATION(app));
+        myfm_window_open_async(win, files[i]);
+        gtk_window_present (GTK_WINDOW (win));
+    }
 }
 
 static void myfm_application_startup (GApplication *app)
