@@ -21,11 +21,39 @@ struct GFileAndListStore {
 
 static int num_files = 32; // TODO: HOW MANY?????
 
+static void add_children (GtkListStore *store, GFile *parent_file, GList *children_list)
+{
+    GFileInfo_autoptr child_info = NULL;
+    GtkTreeIter iter;
+    GError *error = NULL;
+    GList *current_node = children_list;
+
+    while (current_node) {
+        child_info = current_node->data;
+        const char *child_name = g_file_info_get_display_name (child_info);
+        GFile *child_g_file = g_file_get_child_for_display_name (parent_file, child_name, &error);
+
+        if (error) {
+            g_object_unref (child_info);
+            g_object_unref (child_g_file);
+            g_error_free (error);
+            error = NULL; /* TODO: KEEP TABS */
+        }
+        else {
+            MyFMFile *child_myfm_file = myfm_file_new_without_io (child_g_file, g_strdup(child_name));
+            gtk_list_store_append (store, &iter); /* out iter */
+            gtk_list_store_set (store, &iter, 0, (gpointer) child_myfm_file, -1);
+            g_object_unref (child_info);
+        }
+        current_node = current_node->next;
+    }
+}
+
 /* https://stackoverflow.com/questions/35036909/c-glib-gio-how-to-list-files-asynchronously
  * function calls itself until all children have been listed */
 static void next_files_callback (GObject *file_enumerator, GAsyncResult *result, gpointer file_and_store)
 {
-    GError *error = NULL; /* no auto_ptr on this one, free manually */
+    GError_autoptr error = NULL; /* auto_ptr or not? at least we avoid g_error_free everywhere */
     GList *directory_list = g_file_enumerator_next_files_finish (G_FILE_ENUMERATOR (file_enumerator),
                                                                 result, &error);
     if (error) {
@@ -33,7 +61,6 @@ static void next_files_callback (GObject *file_enumerator, GAsyncResult *result,
         g_object_unref (file_enumerator);
         g_object_unref ((((struct GFileAndListStore*) file_and_store)->g_file));
         free (file_and_store);
-        g_error_free (error);
         return;
     }
     else if (directory_list == NULL) {
@@ -47,34 +74,9 @@ static void next_files_callback (GObject *file_enumerator, GAsyncResult *result,
         return;
     }
     else {
-        GList *current_node = directory_list;
-        GFileInfo *child_info;
-        GFile *parent_file;
-        GtkListStore *store;
-        GtkTreeIter iter;
+        add_children (((struct GFileAndListStore*) file_and_store)->store,
+                       ((struct GFileAndListStore*) file_and_store)->g_file,  directory_list);
 
-        parent_file = ((struct GFileAndListStore*) file_and_store)->g_file;
-        store = ((struct GFileAndListStore*) file_and_store)->store;
-
-        while (current_node) {
-            child_info = current_node->data;
-            const char *child_name = g_file_info_get_display_name (child_info);
-            GFile *child_g_file = g_file_get_child_for_display_name (parent_file, child_name, &error);
-
-            if (error) {
-                g_object_unref (child_info);
-                g_object_unref (child_g_file);
-                g_error_free (error);
-                error = NULL; /* TODO: KEEP TABS */
-            }
-            else {
-                puts (child_name);
-                MyFMFile *child_myfm_file = myfm_file_new_without_io (child_g_file, child_info, child_name);
-                gtk_list_store_append (store, &iter); /* out iter */
-                gtk_list_store_set (store, &iter, 0, (gpointer) child_myfm_file, -1);
-            }
-            current_node = current_node->next;
-        }
         g_file_enumerator_next_files_async (G_FILE_ENUMERATOR (file_enumerator),
                                            num_files, G_PRIORITY_HIGH, NULL,
                                            next_files_callback, file_and_store);

@@ -13,11 +13,9 @@
 /* TODO: make boxed type? not sure */
 typedef struct MyFMFile {
     GFile *g_file;
-    GFileMonitor *g_file_monitor;
+    // GFileMonitor *g_file_monitor;
     gboolean is_open;
-    gboolean is_directory;
-    /* these fields require IO to be initialized */
-    GFileInfo *IO_g_file_info;
+    GFileType filetype;
     const char *IO_display_name;
 } MyFMFile;
 
@@ -27,6 +25,6 @@ void myfm_file_from_path_async (MyFMFile *myfm_file, const char *path);
 
 void myfm_file_free (MyFMFile *myfm_file);
 
-MyFMFile *myfm_file_new_without_io (GFile *g_file, GFileInfo *file_info, const char *display_name);
+MyFMFile *myfm_file_new_without_io (GFile *g_file, const char *display_name);
 
 #endif //MYFM_MYFM_FILE_H
