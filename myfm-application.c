@@ -16,7 +16,7 @@ struct _MyFMApplication
     GtkApplication parent_instance;
 };
 
-G_DEFINE_TYPE (MyFMApplication, myfm_application, GTK_TYPE_APPLICATION);
+G_DEFINE_TYPE (MyFMApplication, myfm_application, GTK_TYPE_APPLICATION)
 
 /* application launched with no args */
 static void myfm_application_activate (GApplication *app)
@@ -65,7 +65,7 @@ static void myfm_application_init (MyFMApplication *self)
 
 static void myfm_application_class_init (MyFMApplicationClass *cls)
 {
-    /* replacing overridden functions in parent class objects */
+    /* replacing overridden functions in our class' parent instances */
     GApplicationClass *app_cls = G_APPLICATION_CLASS (cls);
     GObjectClass *object_cls = G_OBJECT_CLASS (cls);
 

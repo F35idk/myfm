@@ -23,9 +23,9 @@ static int num_files = 32; // TODO: HOW MANY?????
 
 static void add_children (GtkListStore *store, GFile *parent_file, GList *children_list)
 {
-    GFileInfo_autoptr child_info = NULL;
     GtkTreeIter iter;
-    GError *error = NULL;
+    GFileInfo *child_info; /* doesn't need autoptr */
+    GError *error = NULL; /* doesn't need autoptr */
     GList *current_node = children_list;
 
     while (current_node) {
@@ -74,6 +74,7 @@ static void next_files_callback (GObject *file_enumerator, GAsyncResult *result,
         return;
     }
     else {
+        /* enumerator returned successfully */
         add_children (((struct GFileAndListStore*) file_and_store)->store,
                        ((struct GFileAndListStore*) file_and_store)->g_file,  directory_list);
 

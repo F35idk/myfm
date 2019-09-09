@@ -9,7 +9,7 @@
 #include "myfm-application.h"
 
 #define MYFM_WINDOW_TYPE (myfm_window_get_type ())
-G_DECLARE_FINAL_TYPE(MyFMWindow, myfm_window, MYFM, WINDOW, GtkApplicationWindow)
+G_DECLARE_FINAL_TYPE (MyFMWindow, myfm_window, MYFM, WINDOW, GtkApplicationWindow)
 
 MyFMWindow *myfm_window_new (MyFMApplication *app);
 void myfm_window_open_async (MyFMWindow *win, GFile *file);

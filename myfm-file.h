@@ -2,8 +2,8 @@
 // Created by f35 on 21.08.19.
 //
 
-#ifndef MYFM_MYFM_FILE_H
-#define MYFM_MYFM_FILE_H
+#ifndef __MYFM_FILE_H
+#define __MYFM_FILE_H
 
 #include <gtk/gtk.h>
 
@@ -27,4 +27,4 @@ void myfm_file_free (MyFMFile *myfm_file);
 
 MyFMFile *myfm_file_new_without_io (GFile *g_file, const char *display_name);
 
-#endif //MYFM_MYFM_FILE_H
+#endif // __MYFM_FILE_H
