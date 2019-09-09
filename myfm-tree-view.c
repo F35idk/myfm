@@ -11,23 +11,24 @@
 struct _MyFMTreeView
 {
     GtkTreeView parent_instance;
-    MyFMWindow *parent_window;
 };
 
 G_DEFINE_TYPE (MyFMTreeView, myfm_tree_view, GTK_TYPE_TREE_VIEW)
 
 static void on_file_select (GtkTreeView *treeview, GtkTreePath *path,
-                            GtkTreeViewColumn *column, gpointer win)
+                            GtkTreeViewColumn *column, gpointer user_data)
 {
     gpointer myfm_file;
     GtkTreeModel *tree_model;
+    MyFMWindow *parent_window;
     GtkTreeIter iter;
 
+    parent_window = (MyFMWindow*) gtk_widget_get_toplevel (GTK_WIDGET (treeview));
     tree_model = gtk_tree_view_get_model (treeview);
     gtk_tree_model_get_iter (tree_model, &iter, path);
     gtk_tree_model_get (tree_model, &iter, 0, &myfm_file, -1);
     if (myfm_file)
-        myfm_window_open_async ((MyFMWindow*) win, ((MyFMFile*) myfm_file)->g_file);
+        myfm_window_open_async (parent_window, ((MyFMFile*) myfm_file)->g_file);
 }
 
 static void myfm_filename_data_func (GtkTreeViewColumn *tree_column, GtkCellRenderer *cell,
@@ -84,19 +85,11 @@ static void myfm_tree_view_constructed (GObject *object)
     gtk_tree_view_set_headers_visible (GTK_TREE_VIEW (self), FALSE);
     gtk_tree_view_set_rubber_banding (GTK_TREE_VIEW (self), TRUE);
 
-    g_signal_connect (self, "row-activated", G_CALLBACK (on_file_select), (gpointer) self->parent_window);
+    g_signal_connect (self, "row-activated", G_CALLBACK (on_file_select), NULL);
 }
 
 static void myfm_tree_view_init (MyFMTreeView *self)
 {
-    MyFMWindow *parent_window;
-
-    if (GTK_IS_WINDOW (gtk_widget_get_toplevel (GTK_WIDGET (self))))
-        parent_window = (MyFMWindow*) gtk_widget_get_toplevel (GTK_WIDGET (self));
-    else
-        parent_window = NULL;
-
-    self->parent_window = parent_window;
 }
 
 static void myfm_tree_view_class_init (MyFMTreeViewClass *cls)
