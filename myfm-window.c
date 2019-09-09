@@ -8,6 +8,7 @@
 #include "myfm-window.h"
 #include "myfm-utils.h"
 #include "myfm-file.h"
+#include "myfm-tree-view.h"
 
 struct _MyFMWindow
 {
@@ -21,51 +22,7 @@ struct _MyFMWindow
     gint default_width;
 };
 
-G_DEFINE_TYPE (MyFMWindow, myfm_window, GTK_TYPE_APPLICATION_WINDOW);
-
-/* forward declare to allow mutual recursion (on_file_select and opn_dir depend on each other) */
-static void myfm_window_open_dir_async (MyFMWindow *self, GFile *g_file_dir);
-
-/* TODO: belongs in our future treeview subclass */
-static void on_file_select (GtkTreeView *treeview, GtkTreePath *path,
-                            GtkTreeViewColumn *column, gpointer win)
-{
-    gpointer myfm_file;
-    GtkTreeModel *tree_model;
-    GtkTreeIter iter;
-
-    tree_model = gtk_tree_view_get_model (treeview);
-    gtk_tree_model_get_iter (tree_model, &iter, path);
-    gtk_tree_model_get (tree_model, &iter, 0, &myfm_file, -1);
-    if (myfm_file)
-        myfm_window_open_dir_async ((MyFMWindow*) win, ((MyFMFile*) myfm_file)->g_file);
-}
-
-/* TODO: belongs in our future treeview subclass */
-static void myfm_filename_data_func (GtkTreeViewColumn *tree_column, GtkCellRenderer *cell,
-                                       GtkTreeModel *tree_model, GtkTreeIter *iter, gpointer user_data)
-{
-    gpointer myfm_file;
-
-    gtk_tree_model_get (tree_model, iter, 0, &myfm_file, -1); /* out myfm_file, pass by value */
-    if (myfm_file)
-        g_object_set (cell, "text", ((MyFMFile *) myfm_file)->IO_display_name, NULL);
-}
-
-/* TODO: belongs in our future treeview subclass */
-static void insert_column (GtkTreeView *treeview)
-{
-    GtkCellRenderer *renderer;
-    GtkTreeViewColumn *col;
-
-    renderer = gtk_cell_renderer_text_new ();
-    col = gtk_tree_view_column_new_with_attributes ("col", renderer, NULL);
-    gtk_tree_view_column_set_cell_data_func (col, renderer, myfm_filename_data_func, NULL, NULL);
-    gtk_tree_view_column_set_resizable (col, TRUE);
-    gtk_tree_view_column_set_expand (col, TRUE);
-
-    gtk_tree_view_append_column (treeview, col);
-}
+G_DEFINE_TYPE (MyFMWindow, myfm_window, GTK_TYPE_APPLICATION_WINDOW)
 
 static void show_treeview_callback (gpointer store, gpointer treeview_scroll)
 {
@@ -74,25 +31,21 @@ static void show_treeview_callback (gpointer store, gpointer treeview_scroll)
 
 static void myfm_window_open_dir_async (MyFMWindow *self, GFile *g_file_dir)
 {
-    GtkTreeView *treeview;
+    MyFMTreeView *treeview;
     GtkScrolledWindow *treeview_scroll;
     GtkListStore *store;
 
     store = gtk_list_store_new (1, G_TYPE_POINTER);
     children_to_store_async (g_file_dir, store);
 
-    /* subclass gtk_treeview and encapsulate this */
-    treeview = (GtkTreeView*) gtk_tree_view_new_with_model (GTK_TREE_MODEL (store));
-    g_object_unref (store); /* treeview increases refcount, so we dont need to keep our reference */
-    insert_column (treeview);
-    gtk_tree_view_set_headers_visible (treeview, FALSE);
-    gtk_tree_view_set_rubber_banding (treeview, TRUE); /* not effective yet */
-    g_signal_connect (treeview, "row-activated", G_CALLBACK (on_file_select), (gpointer) self);
+    treeview = myfm_tree_view_new_with_model (GTK_TREE_MODEL (store));
+    g_object_unref (store);
+    myfm_tree_view_append_file_column (treeview);
 
-   treeview_scroll = (GtkScrolledWindow*) gtk_scrolled_window_new (NULL, NULL);
-   gtk_container_add (GTK_CONTAINER (treeview_scroll), GTK_WIDGET (treeview));
+    treeview_scroll = (GtkScrolledWindow*) gtk_scrolled_window_new (NULL, NULL);
+    gtk_container_add (GTK_CONTAINER (treeview_scroll), GTK_WIDGET (treeview));
 
-   gtk_box_pack_start (self->window_box, GTK_WIDGET (treeview_scroll), TRUE, TRUE, self->box_padding);
+    gtk_box_pack_start (self->window_box, GTK_WIDGET (treeview_scroll), TRUE, TRUE, self->box_padding);
 
     /* wait until all files are in store to show our treeview */
     g_signal_connect (store, "children_added", G_CALLBACK (show_treeview_callback), treeview_scroll);
@@ -159,11 +112,11 @@ static void myfm_window_init (MyFMWindow *self)
 
 static void myfm_window_class_init (MyFMWindowClass *cls)
 {
-
     GtkWidgetClass *widget_cls = GTK_WIDGET_CLASS (cls);
     GObjectClass *object_cls = G_OBJECT_CLASS (cls);
 
     object_cls->dispose = myfm_window_dispose;
+    object_cls->finalize = myfm_window_finalize;
     object_cls->constructed = myfm_window_constructed;
 
     widget_cls->destroy = myfm_window_destroy;
