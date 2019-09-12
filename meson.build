@@ -4,11 +4,11 @@ project ('com.github.f35idk.myfm', 'c',
 
 compiler = meson.get_compiler ('c')
 test_code = '''
-			#if __has_attribute (__cleanup__)
-			#   define RETURN_VALUE 0
-			#endif
-			int main (void) { return RETURN_VALUE; }
-			'''
+            #if __has_attribute (__cleanup__)
+            #   define RETURN_VALUE 0
+            #endif
+            int main (void) { return RETURN_VALUE; }
+            '''
 assert (compiler.compiles (test_code),
         'compiler does not support __attribute__ cleanup'
 )
@@ -26,7 +26,7 @@ executable (meson.project_name (),
             'myfm-utils.c',
             'myfm-signals.c',
             dependencies : [gtk_dep, 
-							gio_dep, 
-							glib_dep],
+                            gio_dep,
+                            glib_dep],
             install: true,
 )
