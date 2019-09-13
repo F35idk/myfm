@@ -71,7 +71,7 @@ static void init_fields_without_io (MyFMFile *myfm_file, GFile *g_file)
     myfm_file->filetype = filetype;
 }
 
-/* despite the function being async, only the fields IO_display_name abd (more???)
+/* despite the function being async, only the fields IO_display_name and (more???)
  * require asynchronous IO to be initialized. thus, the other fields can be accessed
  * safely instantly after this function is called. */
 void myfm_file_from_g_file_async (MyFMFile *myfm_file, GFile *g_file)
@@ -91,6 +91,14 @@ MyFMFile *myfm_file_new_without_io (GFile *g_file, const char* display_name)
     MyFMFile *myfm_file;
 
     myfm_file = malloc (sizeof (MyFMFile));
+
+    if (myfm_file == NULL) {
+        g_critical ("malloc returned NULL, unable to create myfm_file");
+        g_object_unref (g_file);
+        g_free (display_name);
+        return myfm_file;
+    }
+
     init_fields_without_io (myfm_file, g_file);
     myfm_file->IO_display_name = display_name;
 
