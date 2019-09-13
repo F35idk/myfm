@@ -28,7 +28,7 @@ static void myfm_application_activate (GApplication *app)
     home = g_file_new_for_path ("/home/f35/");
     win = myfm_window_new (MYFM_APPLICATION (app));
 
-    myfm_window_open_async (win, home);
+    myfm_window_open_g_file_async (win, home);
 
     gtk_window_present (GTK_WINDOW (win));
 }
@@ -38,8 +38,9 @@ static void myfm_application_open (GApplication *app, GFile **files,
                                    gint n_files, const gchar *hint)
 {
     for (int i = 0; i < n_files; i++) {
-        MyFMWindow *win = myfm_window_new(MYFM_APPLICATION(app));
-        myfm_window_open_async(win, files[i]);
+        MyFMWindow *win = myfm_window_new (MYFM_APPLICATION (app));
+        myfm_window_open_g_file_async (win, files[i]);
+        g_object_unref (files[i]); /* the file is ref'd by the async function above and then unref'd when done */
         gtk_window_present (GTK_WINDOW (win));
     }
 }
