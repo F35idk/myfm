@@ -12,9 +12,9 @@
 #define MYFM_WINDOW_TYPE (myfm_window_get_type ())
 G_DECLARE_FINAL_TYPE (MyFMWindow, myfm_window, MYFM, WINDOW, GtkApplicationWindow)
 
-MyFMWindow *myfm_window_new (MyFMApplication *app);
-void myfm_window_open_file_async (MyFMWindow *win, MyFMFile *file, gint dirview_index);
+MyFMWindow *myfm_window_new        (MyFMApplication *app);
+void myfm_window_open_file_async   (MyFMWindow *win, MyFMFile *file, gint dirview_index);
 void myfm_window_open_g_file_async (MyFMWindow *self, GFile *file);
-GtkBox *myfm_window_get_box (MyFMWindow *self);
+GtkBox *myfm_window_get_box        (MyFMWindow *self);
 
 #endif //__MYFM_APPLICATION_WINDOW_H
