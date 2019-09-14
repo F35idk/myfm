@@ -46,14 +46,14 @@ static void myfm_window_open_dir_async (MyFMWindow *self, GFile *g_file_dir, gin
     /* remove unused directory views */
     GList *element = g_list_nth (self->directory_views, dirview_index+1);
     while (element != NULL) {
+        GList *next = element->next; /* store pointer to next before it changes */
         GtkWidget *scroll = gtk_widget_get_parent (GTK_WIDGET (element->data));
-        gtk_container_remove (GTK_CONTAINER (self->window_box), scroll);
-        gtk_widget_destroy (GTK_WIDGET (element->data));
-        element = g_list_remove (self->directory_views, element->data); /* start hasn't changed */
-        element = element->next;
+        self->directory_views = g_list_remove (self->directory_views, element->data);
+        gtk_container_remove (GTK_CONTAINER (self->window_box), scroll); /* unrefs and destroys all children */
+        element = next;
     }
 
-    /* add our directory view to our ordered directory view list */
+    /* add new directory view to our ordered directory view list */
     self->directory_views = g_list_append (self->directory_views, dirview);
 
     /* make our directory view scrollable */
@@ -97,7 +97,7 @@ void myfm_window_open_g_file_async (MyFMWindow *self, GFile *file)
     if (filetype != G_FILE_TYPE_DIRECTORY)
         myfm_window_open_other_async  (self, file);
     else
-        myfm_window_open_dir_async (self, file, -1); // todo: WHAT NUMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM
+        myfm_window_open_dir_async (self, file, -1);
 }
 
 GtkBox *myfm_window_get_box (MyFMWindow *self)
@@ -107,6 +107,7 @@ GtkBox *myfm_window_get_box (MyFMWindow *self)
 
 gint myfm_window_get_directory_view_index (MyFMWindow *self, MyFMDirectoryView *dirview)
 {
+    return g_list_index (self->directory_views, dirview);
 }
 
 static void myfm_window_destroy (GtkWidget *widget)

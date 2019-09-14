@@ -18,27 +18,20 @@ G_DEFINE_TYPE (MyFMDirectoryView, myfm_directory_view, GTK_TYPE_TREE_VIEW)
 static void on_file_select (GtkTreeView *treeview, GtkTreePath *path,
                             GtkTreeViewColumn *column, gpointer user_data)
 {
-    gpointer myfm_file;
-    GtkTreeIter iter;
     GtkTreeModel *tree_model;
     MyFMWindow *parent_window;
     GtkScrolledWindow *dirview_scroll;
-    GtkBox *win_box;
-    GValue dirview_index = G_VALUE_INIT;
+    gint dirview_index;
+    GtkTreeIter iter;
+    gpointer myfm_file;
 
     parent_window = MYFM_WINDOW (gtk_widget_get_toplevel (GTK_WIDGET (treeview)));
-
-    /* get the index of the directory view containing the selected file so we can pass it to win_open */
-    win_box = myfm_window_get_box (parent_window);
-    dirview_scroll = GTK_SCROLLED_WINDOW (gtk_widget_get_parent (GTK_WIDGET (treeview))); /* the dirview is inside a scrolled_window */
-    g_value_init (&dirview_index, G_TYPE_INT);
-    gtk_container_child_get_property (GTK_CONTAINER (win_box), GTK_WIDGET (dirview_scroll), "position", &dirview_index); /* out dirview_index */
-
+    dirview_index = myfm_window_get_directory_view_index (parent_window, MYFM_DIRECTORY_VIEW (treeview));
     tree_model = gtk_tree_view_get_model (treeview);
     gtk_tree_model_get_iter (tree_model, &iter, path);
     gtk_tree_model_get (tree_model, &iter, 0, &myfm_file, -1);
     if (myfm_file)
-        myfm_window_open_file_async (parent_window, (MyFMFile*) myfm_file, g_value_get_int (&dirview_index));
+        myfm_window_open_file_async (parent_window, (MyFMFile*) myfm_file, dirview_index);
 }
 
 /* GtkCellRenderer data func which fetches the display name of a file in a cell */
