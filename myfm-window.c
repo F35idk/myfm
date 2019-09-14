@@ -15,6 +15,7 @@ struct _MyFMWindow
     GtkApplicationWindow parent_instance;
 
     GtkBox *window_box;
+    GList *directory_views;
     guint box_padding;
     gint box_spacing;
     /* TODO: some of these could be static vars instead */
@@ -36,18 +37,32 @@ static void myfm_window_open_dir_async (MyFMWindow *self, GFile *g_file_dir, gin
     GtkScrolledWindow *dirview_scroll;
     GtkListStore *store;
 
+    /* create new directory view and fill it with files */
     dirview = myfm_directory_view_new ();
     store = GTK_LIST_STORE (gtk_tree_view_get_model (GTK_TREE_VIEW (dirview)));
-    children_to_store_async (g_file_dir, store);
+    files_to_store_async (g_file_dir, store);
     myfm_directory_view_append_file_column (dirview);
 
+    /* remove unused directory views */
+    GList *element = g_list_nth (self->directory_views, dirview_index+1);
+    while (element != NULL) {
+        GtkWidget *scroll = gtk_widget_get_parent (GTK_WIDGET (element->data));
+        gtk_container_remove (GTK_CONTAINER (self->window_box), scroll);
+        gtk_widget_destroy (GTK_WIDGET (element->data));
+        element = g_list_remove (self->directory_views, element->data); /* start hasn't changed */
+        element = element->next;
+    }
+
+    /* add our directory view to our ordered directory view list */
+    self->directory_views = g_list_append (self->directory_views, dirview);
+
+    /* make our directory view scrollable */
     dirview_scroll = GTK_SCROLLED_WINDOW (gtk_scrolled_window_new (NULL, NULL));
     gtk_container_add (GTK_CONTAINER (dirview_scroll), GTK_WIDGET (dirview));
-
     gtk_box_pack_start (self->window_box, GTK_WIDGET (dirview_scroll), TRUE, TRUE, self->box_padding);
 
-    /* wait until all files are in store to show our treeview */
-    g_signal_connect (store, "children_added", G_CALLBACK (show_dirview_callback), dirview_scroll);
+    /* wait until all files are in store to show our directory view */
+    g_signal_connect (store, "files_added", G_CALLBACK (show_dirview_callback), dirview_scroll);
 }
 
 /* function for opening any file that is not a directory */
@@ -56,7 +71,7 @@ static void myfm_window_open_other_async (MyFMWindow *self, GFile *g_file)
     /* make sure to keep the g_file passed into here alive! */
 }
 
-/* main function for opening files and directories */
+/* main function for opening files */
 void myfm_window_open_file_async (MyFMWindow *self, MyFMFile *file, gint dirview_index)
 {
     GFileType filetype;
@@ -82,12 +97,16 @@ void myfm_window_open_g_file_async (MyFMWindow *self, GFile *file)
     if (filetype != G_FILE_TYPE_DIRECTORY)
         myfm_window_open_other_async  (self, file);
     else
-        myfm_window_open_dir_async (self, file, -1);
+        myfm_window_open_dir_async (self, file, -1); // todo: WHAT NUMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM
 }
 
 GtkBox *myfm_window_get_box (MyFMWindow *self)
 {
     return self->window_box;
+}
+
+gint myfm_window_get_directory_view_index (MyFMWindow *self, MyFMDirectoryView *dirview)
+{
 }
 
 static void myfm_window_destroy (GtkWidget *widget)
@@ -131,6 +150,7 @@ static void myfm_window_init (MyFMWindow *self)
     self->default_width = 890;
     self->box_padding = 0;
     self->box_spacing = 0;
+    self->directory_views = NULL;
     self->window_box = GTK_BOX (gtk_box_new (GTK_ORIENTATION_HORIZONTAL, self->box_spacing));
 }
 

@@ -32,7 +32,7 @@ static void on_file_select (GtkTreeView *treeview, GtkTreePath *path,
     win_box = myfm_window_get_box (parent_window);
     dirview_scroll = GTK_SCROLLED_WINDOW (gtk_widget_get_parent (GTK_WIDGET (treeview))); /* the dirview is inside a scrolled_window */
     g_value_init (&dirview_index, G_TYPE_INT);
-    gtk_container_child_get_property (GTK_CONTAINER (win_box), GTK_WIDGET (dirview_scroll), "position", &dirview_index);
+    gtk_container_child_get_property (GTK_CONTAINER (win_box), GTK_WIDGET (dirview_scroll), "position", &dirview_index); /* out dirview_index */
 
     tree_model = gtk_tree_view_get_model (treeview);
     gtk_tree_model_get_iter (tree_model, &iter, path);
@@ -41,6 +41,7 @@ static void on_file_select (GtkTreeView *treeview, GtkTreePath *path,
         myfm_window_open_file_async (parent_window, (MyFMFile*) myfm_file, g_value_get_int (&dirview_index));
 }
 
+/* GtkCellRenderer data func which fetches the display name of a file in a cell */
 static void myfm_filename_data_func (GtkTreeViewColumn *tree_column, GtkCellRenderer *cell,
                                      GtkTreeModel *tree_model, GtkTreeIter *iter, gpointer user_data)
 {

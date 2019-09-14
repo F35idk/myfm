@@ -7,6 +7,6 @@
 
 #include "myfm-file.h"
 
-void children_to_store_async (GFile *directory, GtkListStore *store);
+void files_to_store_async (GFile *directory, GtkListStore *store);
 
 #endif // __MYFM_UTILS_H

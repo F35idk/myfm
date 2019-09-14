@@ -9,7 +9,7 @@
 #include "myfm-file.h"
 
 /* welcome to callback hell. function order of execution:
-*     children_to_store_async --> g_file_enumerate_children_async
+*     files_to_store_async --> g_file_enumerate_children_async
 * --> enum_files_callback --> g_file_enumerator_next_files_async
 * --> next_files_callback */
 
@@ -19,14 +19,14 @@ struct GFileAndListStore {
     GtkListStore *store;
 };
 
-static int num_files = 32; // TODO: HOW MANY?????
+static gint num_files = 32; // TODO: HOW MANY?????
 
-static void add_children (GtkListStore *store, GFile *parent_file, GList *children_list)
+static void add_files (GtkListStore *store, GFile *parent_file, GList *file_list)
 {
     GtkTreeIter iter;
     GFileInfo *child_info; /* doesn't need autoptr */
     GError *error = NULL; /* doesn't need autoptr */
-    GList *current_node = children_list;
+    GList *current_node = file_list;
 
     while (current_node) {
         child_info = current_node->data;
@@ -50,7 +50,7 @@ static void add_children (GtkListStore *store, GFile *parent_file, GList *childr
 }
 
 /* https://stackoverflow.com/questions/35036909/c-glib-gio-how-to-list-files-asynchronously
- * function calls itself until all children have been listed */
+ * function calls itself until all files have been listed */
 static void next_files_callback (GObject *file_enumerator, GAsyncResult *result, gpointer file_and_store)
 {
     GError_autoptr error = NULL; /* auto_ptr or not? at least we avoid g_error_free everywhere */
@@ -69,13 +69,13 @@ static void next_files_callback (GObject *file_enumerator, GAsyncResult *result,
         g_object_unref ((((struct GFileAndListStore*) file_and_store)->g_file)); /* decrement refcount once we're done */
         free (file_and_store);
 
-        g_signal_emit_by_name (((struct GFileAndListStore*) file_and_store)->store, "children_added");
+        g_signal_emit_by_name (((struct GFileAndListStore*) file_and_store)->store, "files_added");
 
         return;
     }
     else {
         /* enumerator returned successfully */
-        add_children (((struct GFileAndListStore*) file_and_store)->store,
+        add_files (((struct GFileAndListStore*) file_and_store)->store,
                        ((struct GFileAndListStore*) file_and_store)->g_file,  directory_list);
 
         g_file_enumerator_next_files_async (G_FILE_ENUMERATOR (file_enumerator),
@@ -105,10 +105,10 @@ static void enum_finished_callback (GObject *directory, GAsyncResult *result, gp
     }
 }
 
-void children_to_store_async (GFile *directory, GtkListStore *store)
+void files_to_store_async (GFile *parent_dir, GtkListStore *store)
 {
     struct GFileAndListStore *file_and_store = malloc (sizeof (struct GFileAndListStore));
-    file_and_store->g_file = directory;
+    file_and_store->g_file = parent_dir;
     file_and_store->store = store;
 
     /* in some situations we might unref the g_file passed to this function shortly
@@ -116,9 +116,9 @@ void children_to_store_async (GFile *directory, GtkListStore *store)
      * means there is a possibility that our g_file is freed before our callbacks
      * are invoked. to prevent this, we increment our g_file's refcount to
      * keep it alive at least temporarily */
-    g_object_ref (directory);
+    g_object_ref (parent_dir);
 
-    g_file_enumerate_children_async (directory,
+    g_file_enumerate_children_async (parent_dir,
                                      "*",
                                      G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS,
                                      G_PRIORITY_HIGH, NULL,
