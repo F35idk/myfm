@@ -6,6 +6,7 @@
 #define __MYFM_WINDOW_H
 
 #include <gtk/gtk.h>
+
 #include "myfm-application.h"
 #include "myfm-file.h"
 #include "myfm-directory-view.h"

@@ -21,6 +21,22 @@ struct GFileAndListStore {
 
 static gint num_files = 32; // TODO: HOW MANY?????
 
+gboolean free_file_in_store (GtkTreeModel *model, GtkTreePath *path, GtkTreeIter *iter, gpointer data)
+{
+    gpointer myfm_file;
+
+    if (!model)
+        return TRUE; /* stop iterating */
+
+    gtk_tree_model_get (model, iter, 0, &myfm_file, -1); /* out myfm_file, pass by value */
+    if (myfm_file) {
+        myfm_file_free ((MyFMFile *) myfm_file);
+        gtk_list_store_set (GTK_LIST_STORE (model), iter, 0, NULL, -1);
+    }
+
+    return FALSE;
+}
+
 static void add_files (GtkListStore *store, GFile *parent_file, GList *file_list)
 {
     GtkTreeIter iter;
@@ -30,7 +46,7 @@ static void add_files (GtkListStore *store, GFile *parent_file, GList *file_list
 
     while (current_node) {
         child_info = current_node->data;
-        const char *child_name = g_file_info_get_display_name (child_info);
+        const char *child_name = g_file_info_get_display_name (child_info); // TODO: no free
         GFile *child_g_file = g_file_get_child_for_display_name (parent_file, child_name, &error);
 
         if (error) {
@@ -40,7 +56,7 @@ static void add_files (GtkListStore *store, GFile *parent_file, GList *file_list
             error = NULL; /* TODO: KEEP TABS */
         }
         else {
-            MyFMFile *child_myfm_file = myfm_file_new_without_io (child_g_file, g_strdup(child_name));
+            MyFMFile *child_myfm_file = myfm_file_new_without_io (child_g_file, g_strdup (child_name));
             gtk_list_store_append (store, &iter); /* out iter */
             gtk_list_store_set (store, &iter, 0, (gpointer) child_myfm_file, -1);
             g_object_unref (child_info);
@@ -59,14 +75,14 @@ static void next_files_callback (GObject *file_enumerator, GAsyncResult *result,
     if (error) {
         g_critical ("Unable to add files to list, error: %s", error->message); // TODO: read error handling docs
         g_object_unref (file_enumerator);
-        g_object_unref ((((struct GFileAndListStore*) file_and_store)->g_file));
+        // g_object_unref ((((struct GFileAndListStore*) file_and_store)->g_file));
         free (file_and_store);
         return;
     }
     else if (directory_list == NULL) {
         /* done listing, nothing left to add to store */
         g_object_unref (file_enumerator);
-        g_object_unref ((((struct GFileAndListStore*) file_and_store)->g_file)); /* decrement refcount once we're done */
+        // g_object_unref ((((struct GFileAndListStore*) file_and_store)->g_file)); /* decrement refcount once we're done */
         free (file_and_store);
 
         g_signal_emit_by_name (((struct GFileAndListStore*) file_and_store)->store, "files_added");
@@ -92,7 +108,7 @@ static void enum_finished_callback (GObject *directory, GAsyncResult *result, gp
 
     file_enumerator = g_file_enumerate_children_finish (G_FILE (directory), result, &error);
     if (error) {
-        g_object_unref ((((struct GFileAndListStore*) file_and_store)->g_file)); /* decrement refcount */
+        // g_object_unref ((((struct GFileAndListStore*) file_and_store)->g_file)); /* decrement refcount */
         free (file_and_store);
         /* TODO: g_critical? */
         return;
@@ -116,7 +132,7 @@ void files_to_store_async (GFile *parent_dir, GtkListStore *store)
      * means there is a possibility that our g_file is freed before our callbacks
      * are invoked. to prevent this, we increment our g_file's refcount to
      * keep it alive at least temporarily */
-    g_object_ref (parent_dir);
+    // TODO: THIS HAS CHANGED !!! // g_object_ref (parent_dir);
 
     g_file_enumerate_children_async (parent_dir,
                                      "*",

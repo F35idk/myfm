@@ -7,10 +7,13 @@
 #include "myfm-directory-view.h"
 #include "myfm-file.h"
 #include "myfm-window.h"
+#include "myfm-utils.h"
 
 struct _MyFMDirectoryView
 {
     GtkTreeView parent_instance;
+    MyFMFile *directory;
+    GFileMonitor *directory_monitor; // TODO: fill in these
 };
 
 G_DEFINE_TYPE (MyFMDirectoryView, myfm_directory_view, GTK_TYPE_TREE_VIEW)
@@ -20,10 +23,9 @@ static void on_file_select (GtkTreeView *treeview, GtkTreePath *path,
 {
     GtkTreeModel *tree_model;
     MyFMWindow *parent_window;
-    GtkScrolledWindow *dirview_scroll;
     gint dirview_index;
     GtkTreeIter iter;
-    gpointer myfm_file;
+    gpointer myfm_file;   
 
     parent_window = MYFM_WINDOW (gtk_widget_get_toplevel (GTK_WIDGET (treeview)));
     dirview_index = myfm_window_get_directory_view_index (parent_window, MYFM_DIRECTORY_VIEW (treeview));
@@ -34,7 +36,7 @@ static void on_file_select (GtkTreeView *treeview, GtkTreePath *path,
         myfm_window_open_file_async (parent_window, (MyFMFile*) myfm_file, dirview_index);
 }
 
-/* GtkCellRenderer data func which fetches the display name of a file in a cell */
+/* GtkCellRenderer data function for getting the display name of a file in a cell */
 static void myfm_filename_data_func (GtkTreeViewColumn *tree_column, GtkCellRenderer *cell,
                                      GtkTreeModel *tree_model, GtkTreeIter *iter, gpointer user_data)
 {
@@ -70,12 +72,28 @@ static void myfm_directory_view_setup_store (MyFMDirectoryView *self)
 
 static void myfm_directory_view_destroy (GtkWidget *widget)
 {
+
+    GtkTreeModel *store;
+
+    store = GTK_TREE_MODEL (gtk_tree_view_get_model (GTK_TREE_VIEW (widget)));
+
+    if (store)
+        gtk_tree_model_foreach (store, free_file_in_store, NULL);
+
     GTK_WIDGET_CLASS (myfm_directory_view_parent_class)->destroy (widget);
 }
 
 static void myfm_directory_view_dispose (GObject *object)
 {
-    /* TODO: G_CLEAR_OBJECT and so on */
+    /*
+    GtkTreeModel *store;
+
+    store = GTK_TREE_MODEL (gtk_tree_view_get_model (GTK_TREE_VIEW (object)));
+    if (store)
+        gtk_tree_model_foreach (store, free_file_in_store, NULL);
+    else
+        puts ("nope");
+     */
 
     G_OBJECT_CLASS (myfm_directory_view_parent_class)->dispose (object);
 }
@@ -83,6 +101,13 @@ static void myfm_directory_view_dispose (GObject *object)
 static void myfm_directory_view_finalize (GObject *object)
 {
     /* TODO: free stuff, etc. */
+    /*
+    GtkTreeModel *store;
+
+    store = GTK_TREE_MODEL (gtk_tree_view_get_model (GTK_TREE_VIEW (object)));
+    if (store)
+        gtk_tree_model_foreach (store, free_file_in_store, NULL);
+    */
 
     G_OBJECT_CLASS (myfm_directory_view_parent_class)->finalize (object);
 }

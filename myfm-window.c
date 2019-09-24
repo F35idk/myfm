@@ -3,6 +3,7 @@
 //
 
 #include <gtk/gtk.h>
+#include <glib.h>
 
 #include "myfm-application.h"
 #include "myfm-window.h"
@@ -16,6 +17,7 @@ struct _MyFMWindow
 
     GtkBox *window_box;
     GList *directory_views;
+    MyFMFile *top_directory;
     guint box_padding;
     gint box_spacing;
     /* TODO: some of these could be static vars instead */
@@ -31,7 +33,7 @@ static void show_dirview_callback (gpointer store, gpointer dirview_scroll)
 }
 
 /* function for opening directories */
-static void myfm_window_open_dir_async (MyFMWindow *self, GFile *g_file_dir, gint dirview_index)
+static void myfm_window_open_dir_async (MyFMWindow *self, MyFMFile *dir, gint dirview_index)
 {
     MyFMDirectoryView *dirview;
     GtkScrolledWindow *dirview_scroll;
@@ -40,7 +42,7 @@ static void myfm_window_open_dir_async (MyFMWindow *self, GFile *g_file_dir, gin
     /* create new directory view and fill it with files */
     dirview = myfm_directory_view_new ();
     store = GTK_LIST_STORE (gtk_tree_view_get_model (GTK_TREE_VIEW (dirview)));
-    files_to_store_async (g_file_dir, store);
+    files_to_store_async (dir->g_file, store);
     myfm_directory_view_append_file_column (dirview);
 
     /* remove unused directory views */
@@ -66,7 +68,7 @@ static void myfm_window_open_dir_async (MyFMWindow *self, GFile *g_file_dir, gin
 }
 
 /* function for opening any file that is not a directory */
-static void myfm_window_open_other_async (MyFMWindow *self, GFile *g_file)
+static void myfm_window_open_other_async (MyFMWindow *self, MyFMFile *file)
 {
     /* make sure to keep the g_file passed into here alive! */
 }
@@ -74,30 +76,17 @@ static void myfm_window_open_other_async (MyFMWindow *self, GFile *g_file)
 /* main function for opening files */
 void myfm_window_open_file_async (MyFMWindow *self, MyFMFile *file, gint dirview_index)
 {
-    GFileType filetype;
-
-    filetype = g_file_query_file_type (file->g_file, G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS, NULL);
-    if (filetype != G_FILE_TYPE_DIRECTORY) {
-        myfm_window_open_other_async (self, file->g_file);
-        file->is_open = TRUE;
+    if (file->filetype != G_FILE_TYPE_DIRECTORY) {
+        myfm_window_open_other_async (self, file);
     }
     else {
-        myfm_window_open_dir_async (self, file->g_file, dirview_index);
+        if (dirview_index == -1) {
+            /* file is the topmost directory in the window and parent of all visible files */
+            self->top_directory = file;
+        }
+        myfm_window_open_dir_async (self, file, dirview_index);
+        file->is_open = TRUE;
     }
-}
-
-/* convenience alternative to open_file for when we just want to pass a g_file instead of a
- * myfm_file (happens on application startup). if a directory is passed, it will be opened
- * at index 0 (the leftmost column/directory_view) of the application window. */
-void myfm_window_open_g_file_async (MyFMWindow *self, GFile *file)
-{
-    GFileType filetype;
-
-    filetype = g_file_query_file_type (file, G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS, NULL);
-    if (filetype != G_FILE_TYPE_DIRECTORY)
-        myfm_window_open_other_async  (self, file);
-    else
-        myfm_window_open_dir_async (self, file, -1);
 }
 
 GtkBox *myfm_window_get_box (MyFMWindow *self)
@@ -112,7 +101,8 @@ gint myfm_window_get_directory_view_index (MyFMWindow *self, MyFMDirectoryView *
 
 static void myfm_window_destroy (GtkWidget *widget)
 {
-    /* chaining up */
+    /* TODO: what to put here? finalize is always run anyway so */
+
     GTK_WIDGET_CLASS (myfm_window_parent_class)->destroy (widget);
 }
 
@@ -126,7 +116,21 @@ static void myfm_window_dispose (GObject *object)
 
 static void myfm_window_finalize (GObject *object)
 {
-    /* TODO: run free funcs, g_assert that shutdown is going well, etc. */
+    MyFMWindow *self;
+
+    /* DEBUG MESSAGE */
+
+    self = MYFM_WINDOW (object);
+
+    if (self->directory_views) {
+        g_list_free (self->directory_views);
+        self->directory_views = NULL;
+    }
+
+    if (self->top_directory) {
+        myfm_file_free (self->top_directory);
+        self->top_directory = NULL;
+    }
 
     G_OBJECT_CLASS (myfm_window_parent_class)->finalize (object);
 }
@@ -152,6 +156,7 @@ static void myfm_window_init (MyFMWindow *self)
     self->box_padding = 0;
     self->box_spacing = 0;
     self->directory_views = NULL;
+    self->top_directory = NULL;
     self->window_box = GTK_BOX (gtk_box_new (GTK_ORIENTATION_HORIZONTAL, self->box_spacing));
 }
 

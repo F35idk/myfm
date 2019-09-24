@@ -22,14 +22,12 @@ G_DEFINE_TYPE (MyFMApplication, myfm_application, GTK_TYPE_APPLICATION)
 static void myfm_application_activate (GApplication *app)
 {
     MyFMWindow *win;
-    GFile_autoptr home = NULL;
+    MyFMFile *home;
 
     /* should default to home directory, currently that's just my home though */
-    home = g_file_new_for_path ("/home/f35/");
+    home = myfm_file_from_path ("/home/f35/");
     win = myfm_window_new (MYFM_APPLICATION (app));
-
-    myfm_window_open_g_file_async (win, home);
-
+    myfm_window_open_file_async (win, home, -1);
     gtk_window_present (GTK_WINDOW (win));
 }
 
@@ -39,8 +37,9 @@ static void myfm_application_open (GApplication *app, GFile **files,
 {
     for (int i = 0; i < n_files; i++) {
         MyFMWindow *win = myfm_window_new (MYFM_APPLICATION (app));
-        myfm_window_open_g_file_async (win, files[i]);
-        g_object_unref (files[i]); /* the file is ref'd by the async function above and then unref'd when done */
+        MyFMFile *file = myfm_file_from_g_file (files[i]);
+        g_object_ref (files[i]); /* the files are (seemingly) not kept alive unless we ref them */
+        myfm_window_open_file_async (win, file, -1);
         gtk_window_present (GTK_WINDOW (win));
     }
 }
