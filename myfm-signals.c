@@ -11,8 +11,4 @@
 /* TODO: could just be a single header tbh */
 void setup_signals (void)
 {
-    /* signal to emit when all files in dir are added (async) to store */
-    g_signal_new ("files_added", GTK_TYPE_LIST_STORE,
-                  G_SIGNAL_RUN_FIRST, 0, NULL, NULL,
-                  NULL, G_TYPE_NONE, 0, NULL);
 }

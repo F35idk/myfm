@@ -8,7 +8,7 @@
 #include "myfm-application.h"
 #include "myfm-window.h"
 #include "myfm-file.h"
-#include "myfm-utils.h"
+#include "myfm-directory-view-utils.h"
 #include "myfm-signals.h"
 
 struct _MyFMApplication
@@ -28,6 +28,7 @@ static void myfm_application_activate (GApplication *app)
     home = myfm_file_from_path ("/home/f35/");
     win = myfm_window_new (MYFM_APPLICATION (app));
     myfm_window_open_file_async (win, home, -1);
+    myfm_file_unref (home);
     gtk_window_present (GTK_WINDOW (win));
 }
 
@@ -37,9 +38,10 @@ static void myfm_application_open (GApplication *app, GFile **files,
 {
     for (int i = 0; i < n_files; i++) {
         MyFMWindow *win = myfm_window_new (MYFM_APPLICATION (app));
-        MyFMFile *file = myfm_file_from_g_file (files[i]);
+        MyFMFile *myfm_file = myfm_file_from_g_file (files[i]);
         g_object_ref (files[i]); /* the files are (seemingly) not kept alive unless we ref them */
-        myfm_window_open_file_async (win, file, -1);
+        myfm_window_open_file_async (win, myfm_file, -1);
+        myfm_file_unref (myfm_file);
         gtk_window_present (GTK_WINDOW (win));
     }
 }

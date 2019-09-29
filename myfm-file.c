@@ -21,6 +21,7 @@ static void on_file_change (GFileMonitor *monitor, GFile *file, GFile *other_fil
 }
 
 /* function for setting up a g_file_monitor on a myfm_file->g_file */
+/*
 static void init_file_monitor (MyFMFile *myfm_file, GFile *g_file)
 {
 
@@ -41,13 +42,14 @@ static void init_file_monitor (MyFMFile *myfm_file, GFile *g_file)
         // myfm_file->g_file_monitor = monitor;
     }
 }
+*/
 
 static void init_fields_without_io (MyFMFile *myfm_file, GFile *g_file)
 {
     myfm_file->g_file = g_file;
     myfm_file->is_open = FALSE; // TODO: thonk
+    myfm_file->priv_refcount = 1;
     // myfm_file->g_file_monitor = NULL; //
-
     myfm_file->filetype = g_file_query_file_type (g_file,
                                                   G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS, NULL);
 }
@@ -61,7 +63,7 @@ static void io_fields_callback (GObject *g_file, GAsyncResult *res, gpointer myf
 
     if (error) {
         g_object_unref (info);
-        myfm_file_free (myfm_file);
+        myfm_file_free (myfm_file); // TODO: watch
         /* TODO: warn */
     }
     else {
@@ -153,4 +155,26 @@ void myfm_file_free (MyFMFile *myfm_file)
     myfm_file->IO_display_name = NULL;
 
     free (myfm_file);
+}
+
+/* as of 2.58, glib provides its own refcounting api. however, for portability, we
+ * use our own dead simple refcounting system instead (literally just a counter).
+ * it should be more than enough. */
+void myfm_file_unref (MyFMFile *myfm_file)
+{
+    printf ("unrefing: %s", myfm_file->IO_display_name);
+    printf (", current refcount: %u \n", myfm_file->priv_refcount);
+    myfm_file->priv_refcount--;
+
+    printf ("refcount: %u \n", myfm_file->priv_refcount);
+
+    if (!myfm_file->priv_refcount)
+       myfm_file_free (myfm_file);
+}
+
+void myfm_file_ref (MyFMFile *myfm_file)
+{
+    printf ("refing: %s", myfm_file->IO_display_name);
+    printf (", current refcount: %u \n", myfm_file->priv_refcount);
+    myfm_file->priv_refcount++;
 }

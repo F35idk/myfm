@@ -13,17 +13,17 @@ assert (compiler.compiles (test_code),
         'compiler does not support __attribute__ cleanup'
 )
 
-gtk_dep = dependency ('gtk+-3.0')
-gio_dep = dependency ('gio-2.0')
-glib_dep = dependency ('glib-2.0')
+gtk_dep = dependency ('gtk+-3.0') # require version
+gio_dep = dependency ('gio-2.0') # require version
+glib_dep = dependency ('glib-2.0') # require version
 
 executable (meson.project_name (),
             'myfm-main.c',
             'myfm-application.c',
             'myfm-window.c',
             'myfm-directory-view.c',
+            'myfm-directory-view-utils.c',
             'myfm-file.c',
-            'myfm-utils.c',
             'myfm-signals.c',
             dependencies : [gtk_dep, 
                             gio_dep,

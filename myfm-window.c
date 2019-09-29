@@ -7,7 +7,7 @@
 
 #include "myfm-application.h"
 #include "myfm-window.h"
-#include "myfm-utils.h"
+#include "myfm-directory-view-utils.h"
 #include "myfm-file.h"
 #include "myfm-directory-view.h"
 
@@ -17,7 +17,6 @@ struct _MyFMWindow
 
     GtkBox *window_box;
     GList *directory_views;
-    MyFMFile *top_directory;
     guint box_padding;
     gint box_spacing;
     /* TODO: some of these could be static vars instead */
@@ -27,9 +26,9 @@ struct _MyFMWindow
 
 G_DEFINE_TYPE (MyFMWindow, myfm_window, GTK_TYPE_APPLICATION_WINDOW)
 
-static void show_dirview_callback (gpointer store, gpointer dirview_scroll)
+static void show_dirview_callback (gpointer store, gpointer dirview)
 {
-    gtk_widget_show_all (GTK_WIDGET (dirview_scroll));
+    gtk_widget_show (GTK_WIDGET (dirview));
 }
 
 /* function for opening directories */
@@ -37,13 +36,13 @@ static void myfm_window_open_dir_async (MyFMWindow *self, MyFMFile *dir, gint di
 {
     MyFMDirectoryView *dirview;
     GtkScrolledWindow *dirview_scroll;
-    GtkListStore *store;
 
     /* create new directory view and fill it with files */
-    dirview = myfm_directory_view_new ();
-    store = GTK_LIST_STORE (gtk_tree_view_get_model (GTK_TREE_VIEW (dirview)));
-    files_to_store_async (dir->g_file, store);
-    myfm_directory_view_append_file_column (dirview);
+    dirview = myfm_directory_view_new (dir);
+    myfm_directory_view_fill_async (dirview);
+
+    /* "promise" to show our directory view once it has been filled */
+    g_signal_connect (dirview, "filled", G_CALLBACK (show_dirview_callback), dirview);
 
     /* remove unused directory views */
     GList *element = g_list_nth (self->directory_views, dirview_index+1);
@@ -58,13 +57,11 @@ static void myfm_window_open_dir_async (MyFMWindow *self, MyFMFile *dir, gint di
     /* add new directory view to our ordered directory view list */
     self->directory_views = g_list_append (self->directory_views, dirview);
 
-    /* make our directory view scrollable */
+    /* make our directory view scrollable and add it to our window */
     dirview_scroll = GTK_SCROLLED_WINDOW (gtk_scrolled_window_new (NULL, NULL));
     gtk_container_add (GTK_CONTAINER (dirview_scroll), GTK_WIDGET (dirview));
     gtk_box_pack_start (self->window_box, GTK_WIDGET (dirview_scroll), TRUE, TRUE, self->box_padding);
-
-    /* wait until all files are in store to show our directory view */
-    g_signal_connect (store, "files_added", G_CALLBACK (show_dirview_callback), dirview_scroll);
+    gtk_widget_show (GTK_WIDGET (dirview_scroll));
 }
 
 /* function for opening any file that is not a directory */
@@ -82,7 +79,7 @@ void myfm_window_open_file_async (MyFMWindow *self, MyFMFile *file, gint dirview
     else {
         if (dirview_index == -1) {
             /* file is the topmost directory in the window and parent of all visible files */
-            self->top_directory = file;
+            // self->top_directory = file;
         }
         myfm_window_open_dir_async (self, file, dirview_index);
         file->is_open = TRUE;
@@ -127,11 +124,6 @@ static void myfm_window_finalize (GObject *object)
         self->directory_views = NULL;
     }
 
-    if (self->top_directory) {
-        myfm_file_free (self->top_directory);
-        self->top_directory = NULL;
-    }
-
     G_OBJECT_CLASS (myfm_window_parent_class)->finalize (object);
 }
 
@@ -156,7 +148,6 @@ static void myfm_window_init (MyFMWindow *self)
     self->box_padding = 0;
     self->box_spacing = 0;
     self->directory_views = NULL;
-    self->top_directory = NULL;
     self->window_box = GTK_BOX (gtk_box_new (GTK_ORIENTATION_HORIZONTAL, self->box_spacing));
 }
 
