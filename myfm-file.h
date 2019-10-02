@@ -11,7 +11,7 @@
  * convenient properties */
 typedef struct MyFMFile {
     GFile *g_file;
-    gboolean is_open; /* currently useless field */
+    gboolean is_open_dir; /* currently useless field */
     GFileType filetype;
     const char *IO_display_name;
     guint priv_refcount;

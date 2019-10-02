@@ -37,9 +37,13 @@ static void myfm_window_open_dir_async (MyFMWindow *self, MyFMFile *dir, gint di
     MyFMDirectoryView *dirview;
     GtkScrolledWindow *dirview_scroll;
 
+    // FIXME: only if the opening succeeds? it kind of has to if this function is even called though
+    dir->is_open_dir = TRUE;
+
     /* create new directory view and fill it with files */
     dirview = myfm_directory_view_new (dir);
-    myfm_directory_view_fill_async (dirview);
+    myfm_directory_view_fill_store_async (dirview);
+    myfm_directory_view_init_monitor (dirview);
 
     /* "promise" to show our directory view once it has been filled */
     g_signal_connect (dirview, "filled", G_CALLBACK (show_dirview_callback), dirview);
@@ -67,23 +71,16 @@ static void myfm_window_open_dir_async (MyFMWindow *self, MyFMFile *dir, gint di
 /* function for opening any file that is not a directory */
 static void myfm_window_open_other_async (MyFMWindow *self, MyFMFile *file)
 {
-    /* make sure to keep the g_file passed into here alive! */
+    // TODO: fill in this
 }
 
 /* main function for opening files */
 void myfm_window_open_file_async (MyFMWindow *self, MyFMFile *file, gint dirview_index)
 {
-    if (file->filetype != G_FILE_TYPE_DIRECTORY) {
+    if (file->filetype != G_FILE_TYPE_DIRECTORY)
         myfm_window_open_other_async (self, file);
-    }
-    else {
-        if (dirview_index == -1) {
-            /* file is the topmost directory in the window and parent of all visible files */
-            // self->top_directory = file;
-        }
+    else
         myfm_window_open_dir_async (self, file, dirview_index);
-        file->is_open = TRUE;
-    }
 }
 
 GtkBox *myfm_window_get_box (MyFMWindow *self)
@@ -115,7 +112,7 @@ static void myfm_window_finalize (GObject *object)
 {
     MyFMWindow *self;
 
-    /* DEBUG MESSAGE */
+    g_debug ("finalizing window");
 
     self = MYFM_WINDOW (object);
 

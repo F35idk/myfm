@@ -7,7 +7,7 @@
 #include "myfm-file.h"
 #include "myfm-directory-view.h"
 
-void files_to_store_async (MyFMDirectoryView *dirview);
-gboolean clear_file_in_store (GtkTreeModel *model, GtkTreePath *path, GtkTreeIter *iter, gpointer data);
+void dirview_utils_files_to_store_async (MyFMDirectoryView *dirview);
+gboolean dirview_utils_clear_file_in_store (GtkTreeModel *model, GtkTreePath *path, GtkTreeIter *iter, gpointer data);
 
 #endif // __MYFM_STORE_UTILS_H

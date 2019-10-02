@@ -9,6 +9,8 @@
 #include "myfm-file.h"
 #include "myfm-directory-view.h"
 
+// TODO: this might be a useless file
+
 static gint num_files = 32; // TODO: HOW MANY?????
 
 /* https://stackoverflow.com/questions/35036909/c-glib-gio-how-to-list-files-asynchronously
@@ -19,7 +21,7 @@ static void next_files_callback (GObject *file_enumerator, GAsyncResult *result,
     GList *directory_list = g_file_enumerator_next_files_finish (G_FILE_ENUMERATOR (file_enumerator),
                                                                 result, &error);
     if (error) {
-        g_critical ("Unable to add files to list, error: %s", error->message); // TODO: read error handling docs
+        g_debug ("Unable to add files to list, error: %s", error->message); // TODO: read error handling docs
         g_object_unref (file_enumerator);
         return;
     }
@@ -63,32 +65,31 @@ static void next_files_callback (GObject *file_enumerator, GAsyncResult *result,
     g_list_free (directory_list);
 }
 
-static void enum_finished_callback (GObject *directory, GAsyncResult *result, gpointer file_and_store)
+static void enum_finished_callback (GObject *directory, GAsyncResult *result, gpointer dirview)
 {
     GFileEnumerator_autoptr file_enumerator = NULL;
     GError_autoptr error = NULL;
 
     file_enumerator = g_file_enumerate_children_finish (G_FILE (directory), result, &error);
     if (error) {
-        // g_object_unref ((((struct GFileAndListStore*) file_and_store)->g_file)); /* decrement refcount */
-        free (file_and_store);
         /* TODO: g_critical? */
         return;
     }
     else {
         g_file_enumerator_next_files_async (file_enumerator, num_files,
                                            G_PRIORITY_HIGH, NULL,
-                                           next_files_callback, file_and_store);
+                                           next_files_callback, dirview);
         file_enumerator = NULL; /* set local pointer to NULL to prevent auto_unref before callback is invoked */
     }
 }
 
-/* adds the files in a directory to the dirview's list store. also sets off
- * a chain of crazy async functions and callbacks. order of execution is:
- *     files_to_store_async --> g_file_enumerate_children_async
+/* adds the files in a directory to the dirview's list store. sets off a
+ * chain of crazy async functions and callbacks. order of execution is:
+ * dirview_utils_files_to_store_async --> g_file_enumerate_children_async
  * --> enum_files_callback --> g_file_enumerator_next_files_async
- * --> next_files_callback. welcome to callback hell */
-void files_to_store_async (MyFMDirectoryView *dirview)
+ * --> next_files_callback.
+ * welcome to callback hell. */
+void dirview_utils_files_to_store_async (MyFMDirectoryView *dirview)
 {
     g_file_enumerate_children_async (myfm_directory_view_get_directory (dirview)->g_file,
                                      "*",
@@ -98,8 +99,8 @@ void files_to_store_async (MyFMDirectoryView *dirview)
                                      dirview);
 }
 
-/* unrefs and sets to null a single file in a list store */
-gboolean clear_file_in_store (GtkTreeModel *model, GtkTreePath *path, GtkTreeIter *iter, gpointer data)
+/* foreach function to be called on a list store. unrefs and sets to null a single file in the store */
+gboolean dirview_utils_clear_file_in_store (GtkTreeModel *model, GtkTreePath *path, GtkTreeIter *iter, gpointer data)
 {
     gpointer myfm_file;
 

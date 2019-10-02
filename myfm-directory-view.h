@@ -21,7 +21,8 @@
 G_DECLARE_FINAL_TYPE (MyFMDirectoryView, myfm_directory_view, MYFM, DIRECTORY_VIEW, GtkTreeView)
 
 MyFMDirectoryView *myfm_directory_view_new  (MyFMFile *directory);
-void myfm_directory_view_fill_async (MyFMDirectoryView *self);
+void myfm_directory_view_fill_store_async   (MyFMDirectoryView *self);
 MyFMFile *myfm_directory_view_get_directory (MyFMDirectoryView *self);
+void myfm_directory_view_init_monitor       (MyFMDirectoryView *self);
 
 #endif // __MYFM_TREE_VIEW_H

@@ -7,54 +7,18 @@
 
 #include "myfm-file.h"
 
-static void on_file_change (GFileMonitor *monitor, GFile *file, GFile *other_file,
-                                GFileMonitorEvent event_type, gpointer user_data)
-{
-/*
- *  *   if (one flag)
- *          one func
- *      else if (other flag)
- *          other func
- *      etc.
- *      etc.
- * */
-}
-
-/* function for setting up a g_file_monitor on a myfm_file->g_file */
-/*
-static void init_file_monitor (MyFMFile *myfm_file, GFile *g_file)
-{
-
-    GFileMonitor *monitor;
-    GError_autoptr error = NULL;
-
-    if (myfm_file->filetype == G_FILE_TYPE_DIRECTORY) {
-        monitor = g_file_monitor_directory (g_file, G_FILE_MONITOR_WATCH_MOVES, NULL, &error);
-    }
-    else {
-        monitor = g_file_monitor_file (g_file, G_FILE_MONITOR_NONE, NULL, &error);
-    }
-
-    if (error) {
-
-    }
-    else {
-        // myfm_file->g_file_monitor = monitor;
-    }
-}
-*/
-
 static void init_fields_without_io (MyFMFile *myfm_file, GFile *g_file)
 {
     myfm_file->g_file = g_file;
-    myfm_file->is_open = FALSE; // TODO: thonk
+    myfm_file->is_open_dir = FALSE; // TODO: thonk
     myfm_file->priv_refcount = 1;
     // myfm_file->g_file_monitor = NULL; //
     myfm_file->filetype = g_file_query_file_type (g_file,
                                                   G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS, NULL);
 }
 
-static void io_fields_callback (GObject *g_file, GAsyncResult *res, gpointer myfm_file)
+// TODO: expand func to initialize all IO dependent fields when these are added to myfm_file
+static void display_name_callback (GObject *g_file, GAsyncResult *res, gpointer myfm_file)
 {
     GFileInfo_autoptr info;
     GError_autoptr error = NULL;
@@ -63,7 +27,7 @@ static void io_fields_callback (GObject *g_file, GAsyncResult *res, gpointer myf
 
     if (error) {
         g_object_unref (info);
-        myfm_file_free (myfm_file); // TODO: watch
+        // myfm_file_free (myfm_file); // TODO: watch
         /* TODO: warn */
     }
     else {
@@ -83,7 +47,7 @@ void myfm_file_from_g_file_async (MyFMFile *myfm_file, GFile *g_file)
 
     g_file_query_info_async (g_file, G_FILE_ATTRIBUTE_STANDARD_DISPLAY_NAME,
                             G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS, G_PRIORITY_DEFAULT,
-                            NULL, io_fields_callback, myfm_file);
+                            NULL, display_name_callback, myfm_file);
 }
 
 MyFMFile *myfm_file_from_g_file (GFile *g_file)
