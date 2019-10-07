@@ -18,10 +18,20 @@ static gint num_files = 32; // TODO: HOW MANY?????
 static void next_files_callback (GObject *file_enumerator, GAsyncResult *result, gpointer dirview)
 {
     GError_autoptr error = NULL; /* auto_ptr or not? at least we avoid g_error_free everywhere */
-    GList *directory_list = g_file_enumerator_next_files_finish (G_FILE_ENUMERATOR (file_enumerator),
-                                                                result, &error);
+    GList *directory_list;
+
+    /* if the directory view no longer exists, abort */
+    if (!G_IS_OBJECT (dirview)) {
+        g_critical ("directory view closed while trying to open \n");
+        g_object_unref (file_enumerator);
+        return;
+    }
+
+    directory_list = g_file_enumerator_next_files_finish (G_FILE_ENUMERATOR (file_enumerator),
+                                                                 result, &error);
+
     if (error) {
-        g_debug ("Unable to add files to list, error: %s", error->message); // TODO: read error handling docs
+        g_critical ("unable to add files to list: %s \n", error->message); // TODO: read error handling docs
         g_object_unref (file_enumerator);
         return;
     }
@@ -46,11 +56,12 @@ static void next_files_callback (GObject *file_enumerator, GAsyncResult *result,
             if (error) {
                 g_object_unref (child_info);
                 g_object_unref (child_g_file);
+                g_warning ("Unable to create g_file in directory: %s \n", error->message);
                 g_error_free (error);
                 error = NULL; /* TODO: KEEP TABS */
             }
             else {
-                MyFMFile *child_myfm_file = myfm_file_new_without_io (child_g_file, g_strdup (child_name));
+                MyFMFile *child_myfm_file = myfm_file_new_with_info (child_g_file, g_strdup (child_name));
                 gtk_list_store_append (store, &iter); /* out iter */
                 gtk_list_store_set (store, &iter, 0, (gpointer) child_myfm_file, -1);
                 g_object_unref (child_info);

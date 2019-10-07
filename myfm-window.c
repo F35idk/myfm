@@ -48,7 +48,7 @@ static void myfm_window_open_dir_async (MyFMWindow *self, MyFMFile *dir, gint di
     /* "promise" to show our directory view once it has been filled */
     g_signal_connect (dirview, "filled", G_CALLBACK (show_dirview_callback), dirview);
 
-    /* remove unused directory views */
+    /* remove unused directory views (all dirviews with an index higher than the one we're creating) */
     GList *element = g_list_nth (self->directory_views, dirview_index+1);
     while (element != NULL) {
         GList *next = element->next; /* store pointer to next before it changes */
@@ -83,14 +83,37 @@ void myfm_window_open_file_async (MyFMWindow *self, MyFMFile *file, gint dirview
         myfm_window_open_dir_async (self, file, dirview_index);
 }
 
-GtkBox *myfm_window_get_box (MyFMWindow *self)
+// TODO: MOVE FUNCTION DESCRIPTIONS INTO HEADER? MAYBE KEEP THEM IN BOTH HEADER AND IMPL FILES???????????????????????????????????????????????
+
+/* function for closing any open directory view (and thus all directory views to the right of it in
+ * the window as well). make sure to pass valid directory views into this - the function itself does no checking */
+void myfm_window_close_directory_view (MyFMWindow *self, MyFMDirectoryView *dirview)
 {
-    return self->window_box;
+    GList *element = g_list_find (self->directory_views, dirview);
+    // element = element->next;
+    while (element != NULL) {
+        GList *next = element->next; /* store pointer to next before it changes */
+        GtkWidget *scroll = gtk_widget_get_parent (GTK_WIDGET (element->data));
+        self->directory_views = g_list_remove (self->directory_views, element->data);
+        gtk_container_remove (GTK_CONTAINER (self->window_box), scroll); /* unrefs and destroys all children */
+        element = next;
+    }
+}
+
+MyFMDirectoryView *myfm_window_get_next_directory_view (MyFMWindow *self, MyFMDirectoryView *dirview)
+{
+    GList *element = g_list_find (self->directory_views, dirview);
+    return element->next->data;
 }
 
 gint myfm_window_get_directory_view_index (MyFMWindow *self, MyFMDirectoryView *dirview)
 {
     return g_list_index (self->directory_views, dirview);
+}
+
+GtkBox *myfm_window_get_box (MyFMWindow *self)
+{
+    return self->window_box;
 }
 
 static void myfm_window_destroy (GtkWidget *widget)

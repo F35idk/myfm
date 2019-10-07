@@ -47,27 +47,22 @@ static void myfm_directory_view_on_dir_change (GFileMonitor *monitor, GFile *fil
    MyFMDirectoryView *self = MYFM_DIRECTORY_VIEW (dirview);
 
    switch (event_type) {
-
        case G_FILE_MONITOR_EVENT_RENAMED :
            myfm_directory_view_on_file_renamed (self, file, other_file);
            break;
 
        case G_FILE_MONITOR_EVENT_MOVED_OUT :
+       case G_FILE_MONITOR_EVENT_DELETED :
            myfm_directory_view_on_file_moved_out (self, file);
            break;
 
        case G_FILE_MONITOR_EVENT_MOVED_IN :
-           myfm_directory_view_on_file_moved_in (self, file);
-           break;
-
        case G_FILE_MONITOR_EVENT_CREATED :
-           puts ("created!!");
            myfm_directory_view_on_file_moved_in (self, file);
            break;
-
-       case G_FILE_MONITOR_EVENT_DELETED :
-           puts ("deleted!!!");
-           myfm_directory_view_on_file_moved_out (self, file);
+       case G_FILE_MONITOR_EVENT_CHANGED :
+       case G_FILE_MONITOR_EVENT_ATTRIBUTE_CHANGED :
+           puts ("changed");
            break;
    }
 }
@@ -85,14 +80,20 @@ static void myfm_directory_view_on_file_renamed (MyFMDirectoryView *self, GFile 
 
         gtk_tree_model_get (GTK_TREE_MODEL (store), &iter, 0, &myfm_file, -1); /* out myfm_file */
 
-        if (myfm_file && g_file_equal (((MyFMFile*) myfm_file)->g_file, orig_g_file)) {
-            MyFMFile *new_myfm_file = malloc (sizeof (MyFMFile));
-            myfm_file_from_g_file_async (new_myfm_file, new_g_file);
-            g_object_ref (new_g_file); // keep the g_file alive beyond the scope of the function
+        if (myfm_file != NULL && g_file_equal (((MyFMFile*) myfm_file)->g_file, orig_g_file)) {
+
+            MyFMFile *new_myfm_file = myfm_file_new_without_io_fields (new_g_file);
+            myfm_file_init_io_fields_async (new_myfm_file);
+
+            g_object_ref (new_g_file); // keep the g_file alive beyond the scope of on_dir_change (parent function)
             gtk_list_store_set (store, &iter, 0, new_myfm_file, -1); // FIXME: "promise" to set the file once it has been initialized async
+
             myfm_file_unref (myfm_file);
         }
     }
+
+    g_debug ("renamed !!!!!!!!!! \n\n");
+    puts ("renamed !!!!!!!!!! \n\n");
 }
 
 static void myfm_directory_view_on_file_moved_out (MyFMDirectoryView *self, GFile *orig_g_file)
@@ -109,12 +110,21 @@ static void myfm_directory_view_on_file_moved_out (MyFMDirectoryView *self, GFil
         gtk_tree_model_get (GTK_TREE_MODEL (store), &iter, 0, &myfm_file, -1); /* out myfm_file */
 
         if (myfm_file && g_file_equal (((MyFMFile*) myfm_file)->g_file, orig_g_file)) {
+
+            /* if the file is an opened directory, close it */
+            if (((MyFMFile*) myfm_file)->is_open_dir) {
+
+                MyFMWindow *parent_win = MYFM_WINDOW (gtk_widget_get_toplevel (GTK_WIDGET (self)));
+                MyFMDirectoryView *next = myfm_window_get_next_directory_view (parent_win, self);
+
+                myfm_window_close_directory_view (parent_win, next);
+            }
+
             myfm_file_unref (myfm_file);
             gtk_list_store_remove (store, &iter);
-            if (((MyFMFile*) myfm_file)->is_open_dir)
-                { /* FIXME: close the opened dir */ } // TODO: !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1
         }
     }
+    g_debug ("moved out !!!!!!!!!! \n\n");
     puts ("moved out !!!!!!!!!! \n\n");
 }
 
@@ -136,13 +146,18 @@ static void myfm_directory_view_on_file_moved_in (MyFMDirectoryView *self, GFile
             return;
     }
 
-    new_myfm_file = malloc (sizeof (MyFMFile));
+    // TODO: our async stuff is messing things up
+    new_myfm_file = myfm_file_new_without_io_fields (new_g_file);
+    myfm_file_init_io_fields_async (new_myfm_file);
 
-    myfm_file_from_g_file_async (new_myfm_file, new_g_file);
     g_object_ref (new_g_file);
 
     gtk_list_store_append (store, &iter);
     gtk_list_store_set (store, &iter, 0, new_myfm_file, -1);
+
+    // G_DEBUG DOESNT DO ANYTHING??
+    // TODO: ENABLE DEBUG MESSAGES
+    g_debug ("moved in !!!!!!!!!! \n\n");
     puts ("moved in !!!!!!!!!! \n\n");
 }
 
@@ -153,8 +168,9 @@ static void myfm_filename_data_func (GtkTreeViewColumn *tree_column, GtkCellRend
     gpointer myfm_file;
 
     gtk_tree_model_get (tree_model, iter, 0, &myfm_file, -1); /* out myfm_file, pass by value */
-    if (myfm_file)
-        g_object_set (cell, "text", ((MyFMFile *) myfm_file)->IO_display_name, NULL);
+
+    if (myfm_file && ((MyFMFile*) myfm_file)->IO_display_name)
+        g_object_set (cell, "text", ((MyFMFile*) myfm_file)->IO_display_name, NULL);
 }
 
 static void myfm_directory_view_setup_store (MyFMDirectoryView *self)
@@ -196,8 +212,8 @@ void myfm_directory_view_init_monitor (MyFMDirectoryView *self)
 
     if (error) {
         g_object_unref (self->directory_monitor);
-        g_debug ("unable to initialize directory monitor on %s directory view: %s",
-                self->directory->IO_display_name, error->message);
+        g_critical ("unable to initialize directory monitor on directory "
+                   "view: %s \n", error->message);
         return;
     }
 
@@ -220,9 +236,10 @@ static void myfm_directory_view_set_directory (MyFMDirectoryView *self, MyFMFile
 
 static void myfm_directory_view_destroy (GtkWidget *widget)
 {
-    puts ("destryoing!!!!!!!!"); // TODO: DEBUG WARN, NOT PUTS!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     GtkTreeModel *store;
     MyFMDirectoryView *self;
+
+    g_debug ("destroying directory view \n");
 
     self = MYFM_DIRECTORY_VIEW (widget);
     store = GTK_TREE_MODEL (gtk_tree_view_get_model (GTK_TREE_VIEW (widget)));
@@ -232,7 +249,13 @@ static void myfm_directory_view_destroy (GtkWidget *widget)
 
     if (self->directory) {
         myfm_file_unref (self->directory);
+        self->directory->is_open_dir = FALSE;
         self->directory = NULL;
+    }
+
+    if (self->directory_monitor) {
+        g_object_unref (self->directory_monitor);
+        self->directory_monitor = NULL;
     }
 
     GTK_WIDGET_CLASS (myfm_directory_view_parent_class)->destroy (widget);
