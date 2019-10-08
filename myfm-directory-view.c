@@ -108,9 +108,7 @@ static void myfm_directory_view_on_file_moved_out (MyFMDirectoryView *self, GFil
     store = GTK_LIST_STORE (gtk_tree_view_get_model (GTK_TREE_VIEW (self)));
     gtk_tree_model_get_iter_first (GTK_TREE_MODEL (store), &iter);
 
-    // FIXME: should be a do-while loop
-    while (gtk_tree_model_iter_next (GTK_TREE_MODEL (store), &iter)) {
-
+    do {
         gtk_tree_model_get (GTK_TREE_MODEL (store), &iter, 0, &myfm_file, -1); /* out myfm_file */
 
         if (myfm_file && g_file_equal (((MyFMFile*) myfm_file)->g_file, orig_g_file)) {
@@ -125,10 +123,10 @@ static void myfm_directory_view_on_file_moved_out (MyFMDirectoryView *self, GFil
             }
 
             myfm_file_unref (myfm_file);
-            printf ("name: %s \n", ((MyFMFile*) myfm_file)->IO_display_name);
             gtk_list_store_remove (store, &iter);
         }
     }
+    while (gtk_tree_model_iter_next (GTK_TREE_MODEL (store), &iter));
 
     g_debug ("moved out !!!!!!!!!! \n\n");
     puts ("moved out !!!!!!!!!! \n\n");
@@ -144,14 +142,14 @@ static void myfm_directory_view_on_file_moved_in (MyFMDirectoryView *self, GFile
     store = GTK_LIST_STORE (gtk_tree_view_get_model (GTK_TREE_VIEW (self)));
     gtk_tree_model_get_iter_first (GTK_TREE_MODEL (store), &iter);
 
-    // FIXME: should be a do-while loop
-    while (gtk_tree_model_iter_next (GTK_TREE_MODEL (store), &iter)) {
+    do {
         gtk_tree_model_get(GTK_TREE_MODEL (store), &iter, 0, &myfm_file, -1); /* out myfm_file */
         /* if the moved in file already exists in the directory it is being moved to
          * (sometimes it might, for whatever reason) we exit the function */
         if (myfm_file && g_file_equal(((MyFMFile *) myfm_file)->g_file, new_g_file))
             return;
     }
+    while (gtk_tree_model_iter_next (GTK_TREE_MODEL (store), &iter));
 
     new_myfm_file = myfm_file_new_without_io_fields (new_g_file);
     myfm_file_init_io_fields_async (new_myfm_file);
