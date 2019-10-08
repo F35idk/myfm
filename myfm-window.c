@@ -43,7 +43,6 @@ static void myfm_window_open_dir_async (MyFMWindow *self, MyFMFile *dir, gint di
     /* create new directory view and fill it with files */
     dirview = myfm_directory_view_new (dir);
     myfm_directory_view_fill_store_async (dirview);
-    myfm_directory_view_init_monitor (dirview);
 
     /* "promise" to show our directory view once it has been filled */
     g_signal_connect (dirview, "filled", G_CALLBACK (show_dirview_callback), dirview);

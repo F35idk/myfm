@@ -14,6 +14,7 @@ struct _MyFMDirectoryView
     GtkTreeView parent_instance;
     MyFMFile *directory;
     GFileMonitor *directory_monitor;
+    GCancellable *IO_canceller;
 };
 
 G_DEFINE_TYPE (MyFMDirectoryView, myfm_directory_view, GTK_TYPE_TREE_VIEW)
@@ -30,8 +31,10 @@ static void on_file_select (GtkTreeView *treeview, GtkTreePath *path,
     parent_window = MYFM_WINDOW (gtk_widget_get_toplevel (GTK_WIDGET (treeview)));
     dirview_index = myfm_window_get_directory_view_index (parent_window, MYFM_DIRECTORY_VIEW (treeview));
     tree_model = gtk_tree_view_get_model (treeview);
+
     gtk_tree_model_get_iter (tree_model, &iter, path);
     gtk_tree_model_get (tree_model, &iter, 0, &myfm_file, -1);
+
     if (myfm_file)
         myfm_window_open_file_async (parent_window, (MyFMFile*) myfm_file, dirview_index);
 }
@@ -105,6 +108,7 @@ static void myfm_directory_view_on_file_moved_out (MyFMDirectoryView *self, GFil
     store = GTK_LIST_STORE (gtk_tree_view_get_model (GTK_TREE_VIEW (self)));
     gtk_tree_model_get_iter_first (GTK_TREE_MODEL (store), &iter);
 
+    // FIXME: should be a do-while loop
     while (gtk_tree_model_iter_next (GTK_TREE_MODEL (store), &iter)) {
 
         gtk_tree_model_get (GTK_TREE_MODEL (store), &iter, 0, &myfm_file, -1); /* out myfm_file */
@@ -121,9 +125,11 @@ static void myfm_directory_view_on_file_moved_out (MyFMDirectoryView *self, GFil
             }
 
             myfm_file_unref (myfm_file);
+            printf ("name: %s \n", ((MyFMFile*) myfm_file)->IO_display_name);
             gtk_list_store_remove (store, &iter);
         }
     }
+
     g_debug ("moved out !!!!!!!!!! \n\n");
     puts ("moved out !!!!!!!!!! \n\n");
 }
@@ -136,8 +142,9 @@ static void myfm_directory_view_on_file_moved_in (MyFMDirectoryView *self, GFile
     GtkTreeIter iter;
 
     store = GTK_LIST_STORE (gtk_tree_view_get_model (GTK_TREE_VIEW (self)));
+    gtk_tree_model_get_iter_first (GTK_TREE_MODEL (store), &iter);
 
-
+    // FIXME: should be a do-while loop
     while (gtk_tree_model_iter_next (GTK_TREE_MODEL (store), &iter)) {
         gtk_tree_model_get(GTK_TREE_MODEL (store), &iter, 0, &myfm_file, -1); /* out myfm_file */
         /* if the moved in file already exists in the directory it is being moved to
@@ -146,7 +153,6 @@ static void myfm_directory_view_on_file_moved_in (MyFMDirectoryView *self, GFile
             return;
     }
 
-    // TODO: our async stuff is messing things up
     new_myfm_file = myfm_file_new_without_io_fields (new_g_file);
     myfm_file_init_io_fields_async (new_myfm_file);
 
@@ -155,7 +161,6 @@ static void myfm_directory_view_on_file_moved_in (MyFMDirectoryView *self, GFile
     gtk_list_store_append (store, &iter);
     gtk_list_store_set (store, &iter, 0, new_myfm_file, -1);
 
-    // G_DEBUG DOESNT DO ANYTHING??
     // TODO: ENABLE DEBUG MESSAGES
     g_debug ("moved in !!!!!!!!!! \n\n");
     puts ("moved in !!!!!!!!!! \n\n");
@@ -196,14 +201,7 @@ static void myfm_directory_view_setup_files_column (MyFMDirectoryView *self)
     gtk_tree_view_append_column (GTK_TREE_VIEW (self), col);
 }
 
-/* exists just to nicely wrap the ugly mess that is files_to_store_async (found in
- * directory-view-utils) and its chain of crazy async functions and callbacks. */
-void myfm_directory_view_fill_store_async (MyFMDirectoryView *self)
-{
-    dirview_utils_files_to_store_async (self); // emits "filled" signal when done
-}
-
-void myfm_directory_view_init_monitor (MyFMDirectoryView *self)
+static void myfm_directory_view_setup_monitor (MyFMDirectoryView *self)
 {
     GError_autoptr error = NULL; /* auto */
 
@@ -221,17 +219,128 @@ void myfm_directory_view_init_monitor (MyFMDirectoryView *self)
                       G_CALLBACK (myfm_directory_view_on_dir_change), self);
 }
 
-MyFMFile *myfm_directory_view_get_directory (MyFMDirectoryView *self)
+
+/* ------------------------------------------------------------------------------------------ *
+ *  CALLBACKS START
+ * ------------------------------------------------------------------------------------------ */
+static gint n_files = 32; // number of files to request per g_file_enumerator iteration
+
+/* https://stackoverflow.com/questions/35036909/c-glib-gio-how-to-list-files-asynchronously
+ * function calls itself until all files have been listed */
+static void next_files_callback (GObject *file_enumerator, GAsyncResult *result, gpointer self)
 {
-    return self->directory;
+    GError_autoptr error = NULL; /* auto_ptr or not? at least we avoid g_error_free everywhere */
+    GList *directory_list;
+
+    directory_list = g_file_enumerator_next_files_finish (G_FILE_ENUMERATOR (file_enumerator),
+                                                          result, &error);
+    if (error) {
+        /* if IO was cancelled due to the directory view being destroyed, if
+         * the file no longer exists, etc. */
+        g_critical ("unable to add files to list: %s \n", error->message);
+        g_object_unref (file_enumerator);
+        return;
+    }
+    else if (directory_list == NULL) {
+        /* done listing, nothing left to add to store */
+        g_object_unref (file_enumerator);
+        /* emit "filled" signal when done */
+        g_signal_emit_by_name (MYFM_DIRECTORY_VIEW (self), "filled");
+        return;
+    }
+    else {
+        /* enumerator returned successfully */
+        GtkTreeIter iter;
+        GFileInfo *child_info; /* doesn't need autoptr */
+        GList *current_node = directory_list;
+        GFile *parent_dir = MYFM_DIRECTORY_VIEW (self)->directory->g_file;
+        GtkListStore *store = GTK_LIST_STORE (gtk_tree_view_get_model (GTK_TREE_VIEW (self)));
+
+        /* iterate over directory_list and add files to store */
+        while (current_node) {
+
+            child_info = current_node->data;
+            const char *child_name = g_file_info_get_display_name (child_info); // TODO: no free
+            GFile *child_g_file = g_file_get_child_for_display_name (parent_dir, child_name, &error);
+
+            if (error) {
+                g_object_unref (child_info);
+                g_object_unref (child_g_file);
+                g_warning ("Unable to create g_file in directory: %s \n", error->message);
+                g_error_free (error);
+                error = NULL; /* TODO: KEEP TABS */
+            }
+            else {
+                MyFMFile *child_myfm_file = myfm_file_new_with_info (child_g_file, g_strdup (child_name));
+                gtk_list_store_append (store, &iter); /* out iter */
+                gtk_list_store_set (store, &iter, 0, (gpointer) child_myfm_file, -1);
+                g_object_unref (child_info);
+            }
+            current_node = current_node->next;
+        }
+        /* continue calling next_files and next_files_callback recursively */
+        g_file_enumerator_next_files_async (G_FILE_ENUMERATOR (file_enumerator), n_files,
+                                            G_PRIORITY_HIGH, MYFM_DIRECTORY_VIEW (self)->IO_canceller,
+                                            next_files_callback, self);
+    }
+    g_list_free (directory_list);
 }
 
-/* this exists only so i can set the dir on construction, and im too lazy (and
- * dont consider it worth it) to make self->directory a full blown gobject property */
-static void myfm_directory_view_set_directory (MyFMDirectoryView *self, MyFMFile *dir)
+static void enum_finished_callback (GObject *directory, GAsyncResult *result, gpointer self)
 {
-    self->directory = dir;
-    myfm_file_ref (dir);
+    GFileEnumerator_autoptr file_enumerator = NULL;
+    GError_autoptr error = NULL;
+
+    file_enumerator = g_file_enumerate_children_finish (G_FILE (directory), result, &error);
+
+    if (error) {
+        g_critical ("error in enum_finished_callback: %s \n", error->message);
+        return;
+    }
+    else {
+        g_file_enumerator_next_files_async (file_enumerator, n_files, G_PRIORITY_HIGH,
+                                            MYFM_DIRECTORY_VIEW (self)->IO_canceller,
+                                            next_files_callback, self);
+        file_enumerator = NULL; /* set local pointer to NULL to prevent auto_unref before callback is invoked */
+    }
+}
+/* ------------------------------------------------------------------------------------------ *
+ *  CALLBACKS END
+ * ------------------------------------------------------------------------------------------ */
+
+
+/* adds the files in the directory view's directory to its list store. sets
+ * off a chain of crazy async functions and callbacks (above). also emits the
+ * "filled" signal when done. order of execution is:
+ * myfm_directory_view_fill_store_async --> g_file_enumerate_children_async
+ * --> enum_files_callback --> g_file_enumerator_next_files_async
+ * --> next_files_callback. welcome to callback hell. */
+void myfm_directory_view_fill_store_async (MyFMDirectoryView *self)
+{
+    g_file_enumerate_children_async (self->directory->g_file, "*",
+                                     G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS,
+                                     G_PRIORITY_HIGH, self->IO_canceller,
+                                     enum_finished_callback,
+                                     self);
+}
+
+/* foreach function to be called on the directory view's list store (used in the
+ * directory view destructor). unrefs and sets to null a single file in the store */
+gboolean clear_file_in_store (GtkTreeModel *model, GtkTreePath *path, GtkTreeIter *iter, gpointer data)
+{
+    gpointer myfm_file;
+
+    if (!model)
+        return TRUE; /* stop iterating */
+
+    gtk_tree_model_get (model, iter, 0, &myfm_file, -1);
+    if (myfm_file) {
+        // myfm_file_free ((MyFMFile *) myfm_file);
+        myfm_file_unref ((MyFMFile*) myfm_file);
+        gtk_list_store_set (GTK_LIST_STORE (model), iter, 0, NULL, -1);
+    }
+
+    return FALSE;
 }
 
 static void myfm_directory_view_destroy (GtkWidget *widget)
@@ -245,17 +354,24 @@ static void myfm_directory_view_destroy (GtkWidget *widget)
     store = GTK_TREE_MODEL (gtk_tree_view_get_model (GTK_TREE_VIEW (widget)));
 
     if (store)
-        gtk_tree_model_foreach (store, dirview_utils_clear_file_in_store, NULL);
+        gtk_tree_model_foreach (store, clear_file_in_store, NULL);
 
     if (self->directory) {
-        myfm_file_unref (self->directory);
         self->directory->is_open_dir = FALSE;
+        myfm_file_unref (self->directory);
         self->directory = NULL;
     }
 
     if (self->directory_monitor) {
         g_object_unref (self->directory_monitor);
         self->directory_monitor = NULL;
+    }
+
+    /* cancel all IO on the directory view */
+    if (self->IO_canceller) {
+        g_cancellable_cancel (self->IO_canceller);
+        g_object_unref (self->IO_canceller);
+        self->IO_canceller = NULL;
     }
 
     GTK_WIDGET_CLASS (myfm_directory_view_parent_class)->destroy (widget);
@@ -290,6 +406,7 @@ static void myfm_directory_view_constructed (GObject *object)
 
 static void myfm_directory_view_init (MyFMDirectoryView *self)
 {
+    self->IO_canceller = g_cancellable_new ();
 }
 
 static void myfm_directory_view_class_init (MyFMDirectoryViewClass *cls)
@@ -303,9 +420,7 @@ static void myfm_directory_view_class_init (MyFMDirectoryViewClass *cls)
 
     widget_cls->destroy = myfm_directory_view_destroy;
 
-    /* signal to emit when all files in dir are added (async) to store. actual
-     * signal emission code can be found in myfm-directory-view-utils.c,
-     * but is called in myfm_directory_view_fill_async */
+    /* signal to emit when all files in dir are added (async) to store. */
     g_signal_new ("filled", MYFM_DIRECTORY_VIEW_TYPE,
                   G_SIGNAL_RUN_FIRST, 0, NULL, NULL,
                   NULL, G_TYPE_NONE, 0, NULL);
@@ -315,10 +430,12 @@ static void myfm_directory_view_class_init (MyFMDirectoryViewClass *cls)
  * and "myfm_directory_view_init_monitor" to ensure that it will refresh itself continually. */
 MyFMDirectoryView *myfm_directory_view_new (MyFMFile *directory)
 {
-    MyFMDirectoryView *view;
+    MyFMDirectoryView *dirview;
 
-    view = g_object_new (MYFM_DIRECTORY_VIEW_TYPE, NULL);
-    myfm_directory_view_set_directory (view, directory);
+    dirview = g_object_new (MYFM_DIRECTORY_VIEW_TYPE, NULL);
+    dirview->directory = directory;
+    myfm_file_ref (directory);
+    myfm_directory_view_setup_monitor (dirview);
 
-    return view;
+    return dirview;
 }

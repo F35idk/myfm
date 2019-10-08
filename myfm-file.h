@@ -14,7 +14,8 @@ typedef struct MyFMFile {
     gboolean is_open_dir; /* currently useless field */
     GFileType filetype;
     const char *IO_display_name;
-    guint priv_refcount;
+    guint _refcount;
+    GCancellable *_cancellable;
 } MyFMFile;
 
 void myfm_file_unref                      (MyFMFile *myfm_file);
