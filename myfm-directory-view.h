@@ -22,5 +22,7 @@ G_DECLARE_FINAL_TYPE (MyFMDirectoryView, myfm_directory_view, MYFM, DIRECTORY_VI
 
 MyFMDirectoryView *myfm_directory_view_new  (MyFMFile *directory);
 void myfm_directory_view_fill_store_async   (MyFMDirectoryView *self);
+void myfm_directory_view_replace_directory  (MyFMDirectoryView *self, MyFMFile *new_dir);
+void myfm_directory_view_refresh_all        (MyFMDirectoryView *self);
 
 #endif // __MYFM_TREE_VIEW_H
