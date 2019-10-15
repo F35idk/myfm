@@ -10,8 +10,7 @@
 #include "myfm-file.h"
 #include "myfm-directory-view-utils.h"
 
-struct _MyFMApplication
-{
+struct _MyFMApplication {
     GtkApplication parent_instance;
 };
 

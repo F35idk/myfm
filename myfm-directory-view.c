@@ -7,10 +7,8 @@
 #include "myfm-directory-view.h"
 #include "myfm-file.h"
 #include "myfm-window.h"
-#include "myfm-directory-view-utils.h" // as dirview_utils
 
-struct _MyFMDirectoryView
-{
+struct _MyFMDirectoryView {
     GtkTreeView parent_instance;
     MyFMFile *directory;
     GFileMonitor *directory_monitor;
@@ -66,6 +64,7 @@ static void myfm_directory_view_on_dir_change (GFileMonitor *monitor, GFile *fil
        case G_FILE_MONITOR_EVENT_CHANGED :
        case G_FILE_MONITOR_EVENT_ATTRIBUTE_CHANGED :
            puts ("changed");
+           // TODO: fill in this
            break;
    }
 }
@@ -102,7 +101,7 @@ static void myfm_directory_view_on_file_renamed (MyFMDirectoryView *self, GFile 
                     MyFMDirectoryView *next = myfm_window_get_next_directory_view (parent_win, self);
 
                     myfm_directory_view_replace_directory (next, new_myfm_file);
-                    myfm_directory_view_refresh_all (next);
+                    myfm_directory_view_refresh_all_async (next);
                 }
 
                 myfm_file_unref (myfm_file);
@@ -266,7 +265,7 @@ void myfm_directory_view_replace_directory (MyFMDirectoryView *self, MyFMFile *n
     myfm_directory_view_setup_monitor (self);
 }
 
-void myfm_directory_view_refresh_all (MyFMDirectoryView *self)
+void myfm_directory_view_refresh_all_async (MyFMDirectoryView *self)
 {
     GtkTreeModel *store;
 
@@ -438,6 +437,7 @@ static void myfm_directory_view_constructed (GObject *object)
 
     gtk_tree_view_set_headers_visible (GTK_TREE_VIEW (self), FALSE);
     gtk_tree_view_set_rubber_banding (GTK_TREE_VIEW (self), TRUE);
+    gtk_tree_view_set_activate_on_single_click (GTK_TREE_VIEW (self), TRUE); // TODO: allow configurable
 
     g_signal_connect (self, "row-activated", G_CALLBACK (on_file_select), NULL);
 }
@@ -464,8 +464,9 @@ static void myfm_directory_view_class_init (MyFMDirectoryViewClass *cls)
                   NULL, G_TYPE_NONE, 0, NULL);
 }
 
-/* creates an empty directory view. call "myfm_directory_view_fill_store_async" to fill it
- * and "myfm_directory_view_init_monitor" to ensure that it will refresh itself continually. */
+/* creates an empty directory view. call "myfm_directory_view_fill_store_async" to fill it */
+// TODO: avoid construct-only properties. ideally, this func should only contain g_obj_new
+//  and nothing else, as this helps with potential language bindings (extending with vala??)
 MyFMDirectoryView *myfm_directory_view_new (MyFMFile *directory)
 {
     MyFMDirectoryView *dirview;

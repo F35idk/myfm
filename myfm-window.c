@@ -10,12 +10,12 @@
 #include "myfm-directory-view-utils.h"
 #include "myfm-file.h"
 #include "myfm-directory-view.h"
+#include "myfm-multi-paned.h"
 
-struct _MyFMWindow
-{
+struct _MyFMWindow {
     GtkApplicationWindow parent_instance;
 
-    GtkBox *window_box;
+    MyFMMultiPaned *mpaned;
     GList *directory_views;
     guint box_padding;
     gint box_spacing;
@@ -47,23 +47,25 @@ static void myfm_window_open_dir_async (MyFMWindow *self, MyFMFile *dir, gint di
     /* "promise" to show our directory view once it has been filled */
     g_signal_connect (dirview, "filled", G_CALLBACK (show_dirview_callback), dirview);
 
-    /* remove unused directory views (all dirviews with an index higher than the one we're creating) */
+    /* remove unused directory views from our ordered directory view list (truncate it) */
     GList *element = g_list_nth (self->directory_views, dirview_index+1);
     while (element != NULL) {
         GList *next = element->next; /* store pointer to next before it changes */
         GtkWidget *scroll = gtk_widget_get_parent (GTK_WIDGET (element->data));
         self->directory_views = g_list_remove (self->directory_views, element->data);
-        gtk_container_remove (GTK_CONTAINER (self->window_box), scroll); /* unrefs and destroys all children */
         element = next;
     }
 
-    /* add new directory view to our ordered directory view list */
+    /* truncate pane widget as well (function returns if no directory views can be removed) */
+    myfm_multi_paned_truncate_by_index (self->mpaned, dirview_index + 1);
+
+    /* add new directory view to our list */
     self->directory_views = g_list_append (self->directory_views, dirview);
 
-    /* make our directory view scrollable and add it to our window */
+    /* make our directory view scrollable and add it to our pane widget */
     dirview_scroll = GTK_SCROLLED_WINDOW (gtk_scrolled_window_new (NULL, NULL));
     gtk_container_add (GTK_CONTAINER (dirview_scroll), GTK_WIDGET (dirview));
-    gtk_box_pack_start (self->window_box, GTK_WIDGET (dirview_scroll), TRUE, TRUE, self->box_padding);
+    myfm_multi_paned_add (self->mpaned, GTK_WIDGET (dirview_scroll));
     gtk_widget_show (GTK_WIDGET (dirview_scroll));
 }
 
@@ -89,14 +91,15 @@ void myfm_window_open_file_async (MyFMWindow *self, MyFMFile *file, gint dirview
 void myfm_window_close_directory_view (MyFMWindow *self, MyFMDirectoryView *dirview)
 {
     GList *element = g_list_find (self->directory_views, dirview);
-    // element = element->next;
     while (element != NULL) {
         GList *next = element->next; /* store pointer to next before it changes */
         GtkWidget *scroll = gtk_widget_get_parent (GTK_WIDGET (element->data));
         self->directory_views = g_list_remove (self->directory_views, element->data);
-        gtk_container_remove (GTK_CONTAINER (self->window_box), scroll); /* unrefs and destroys all children */
         element = next;
     }
+
+    gint index = myfm_window_get_directory_view_index (self, dirview);
+    myfm_multi_paned_truncate_by_index (self->mpaned, index);
 }
 
 MyFMDirectoryView *myfm_window_get_next_directory_view (MyFMWindow *self, MyFMDirectoryView *dirview)
@@ -108,11 +111,6 @@ MyFMDirectoryView *myfm_window_get_next_directory_view (MyFMWindow *self, MyFMDi
 gint myfm_window_get_directory_view_index (MyFMWindow *self, MyFMDirectoryView *dirview)
 {
     return g_list_index (self->directory_views, dirview);
-}
-
-GtkBox *myfm_window_get_box (MyFMWindow *self)
-{
-    return self->window_box;
 }
 
 static void myfm_window_destroy (GtkWidget *widget)
@@ -153,10 +151,11 @@ static void myfm_window_constructed (GObject *object)
     G_OBJECT_CLASS (myfm_window_parent_class)->constructed (object);
 
     self = MYFM_WINDOW (object);
+
     gtk_window_set_default_size (GTK_WINDOW (self), self->default_width, self->default_height);
-    /* do these belong here? */
-    gtk_container_add (GTK_CONTAINER (self), GTK_WIDGET (self->window_box));
-    gtk_widget_show (GTK_WIDGET (self->window_box));
+
+    gtk_container_add (GTK_CONTAINER (self), GTK_WIDGET (self->mpaned));
+    gtk_widget_show (GTK_WIDGET (self->mpaned));
 }
 
 static void myfm_window_init (MyFMWindow *self)
@@ -167,7 +166,8 @@ static void myfm_window_init (MyFMWindow *self)
     self->box_padding = 0;
     self->box_spacing = 0;
     self->directory_views = NULL;
-    self->window_box = GTK_BOX (gtk_box_new (GTK_ORIENTATION_HORIZONTAL, self->box_spacing));
+
+    self->mpaned = myfm_multi_paned_new ();
 }
 
 static void myfm_window_class_init (MyFMWindowClass *cls)
