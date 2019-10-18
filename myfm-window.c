@@ -15,18 +15,56 @@
 struct _MyFMWindow {
     GtkApplicationWindow parent_instance;
 
-    MyFMMultiPaned *mpaned;
+    /* ordered list of directory views (columns in the file manager) */
     GList *directory_views;
-    guint box_padding;
-    gint box_spacing;
-    /* TODO: some of these could be static vars instead */
+
+    /* widget containing each directory view. allows them to be
+     * resized freely */
+    MyFMMultiPaned *mpaned;
+
+    /* parent of mpaned that allows horizontal scrolling */
+    GtkScrolledWindow *pane_scroll;
+
+    /* FIXME: these could be static vars instead */
     gint default_height;
     gint default_width;
 };
 
 G_DEFINE_TYPE (MyFMWindow, myfm_window, GTK_TYPE_APPLICATION_WINDOW)
 
-static void show_dirview_callback (gpointer store, gpointer dirview)
+static void mpaned_scroll_left_callback (MyFMMultiPaned *mpaned, gdouble scroll_dest, gpointer pane_scroll)
+{
+    gboolean return_val;
+    GtkAdjustment *adj;
+    gdouble current_val;
+    gdouble step_incr;
+    gdouble page_size;
+
+    adj = gtk_scrolled_window_get_hadjustment (GTK_SCROLLED_WINDOW (pane_scroll));
+    page_size = gtk_adjustment_get_page_size (adj);
+    current_val = gtk_adjustment_get_value (adj);
+
+    printf ("current val :: %f, minus scroll dest :: %f plus page size :: %f \n\n\n\n\n\n\n\n", current_val, scroll_dest, page_size);
+    printf ("scroll_amt :: %f \n\n\n\n\n\n\n\n", current_val - scroll_dest + page_size);
+
+    if (scroll_dest - page_size < 0)
+        step_incr = current_val;
+    else
+        step_incr = current_val - scroll_dest + page_size;
+
+    printf ("step_incr :: %f \n\n\n\n\n\n\n\n", step_incr);
+    gtk_adjustment_set_step_increment (adj, step_incr);
+    g_signal_emit_by_name (GTK_SCROLLED_WINDOW (pane_scroll), "scroll-child", GTK_SCROLL_STEP_LEFT, TRUE, &return_val);
+}
+
+static void mpaned_scroll_to_end_callback (MyFMMultiPaned *mpaned, gpointer pane_scroll)
+{
+    gboolean return_val;
+
+    g_signal_emit_by_name (GTK_SCROLLED_WINDOW (pane_scroll), "scroll-child", GTK_SCROLL_END, TRUE, &return_val);
+}
+
+static void show_dirview_callback (gpointer dirview)
 {
     gtk_widget_show (GTK_WIDGET (dirview));
 }
@@ -45,13 +83,12 @@ static void myfm_window_open_dir_async (MyFMWindow *self, MyFMFile *dir, gint di
     myfm_directory_view_fill_store_async (dirview);
 
     /* "promise" to show our directory view once it has been filled */
-    g_signal_connect (dirview, "filled", G_CALLBACK (show_dirview_callback), dirview);
+    g_signal_connect (dirview, "filled", G_CALLBACK (show_dirview_callback), NULL);
 
     /* remove unused directory views from our ordered directory view list (truncate it) */
     GList *element = g_list_nth (self->directory_views, dirview_index+1);
     while (element != NULL) {
         GList *next = element->next; /* store pointer to next before it changes */
-        GtkWidget *scroll = gtk_widget_get_parent (GTK_WIDGET (element->data));
         self->directory_views = g_list_remove (self->directory_views, element->data);
         element = next;
     }
@@ -93,7 +130,6 @@ void myfm_window_close_directory_view (MyFMWindow *self, MyFMDirectoryView *dirv
     GList *element = g_list_find (self->directory_views, dirview);
     while (element != NULL) {
         GList *next = element->next; /* store pointer to next before it changes */
-        GtkWidget *scroll = gtk_widget_get_parent (GTK_WIDGET (element->data));
         self->directory_views = g_list_remove (self->directory_views, element->data);
         element = next;
     }
@@ -154,20 +190,24 @@ static void myfm_window_constructed (GObject *object)
 
     gtk_window_set_default_size (GTK_WINDOW (self), self->default_width, self->default_height);
 
-    gtk_container_add (GTK_CONTAINER (self), GTK_WIDGET (self->mpaned));
+    gtk_container_add (GTK_CONTAINER (self->pane_scroll), GTK_WIDGET (self->mpaned));
+    gtk_container_add (GTK_CONTAINER (self), GTK_WIDGET (self->pane_scroll));
+
+    g_signal_connect (self->mpaned, "shrink", G_CALLBACK (mpaned_scroll_left_callback), self->pane_scroll);
+    g_signal_connect_after (self->mpaned, "expand", G_CALLBACK (mpaned_scroll_to_end_callback), self->pane_scroll);
+
+    gtk_widget_show (GTK_WIDGET (self->pane_scroll));
     gtk_widget_show (GTK_WIDGET (self->mpaned));
 }
 
 static void myfm_window_init (MyFMWindow *self)
 {
-    /* set up instance vars */
-    self->default_height = 550; /* these don't need to be tied to our instance */
+    self->default_height = 550;
     self->default_width = 890;
-    self->box_padding = 0;
-    self->box_spacing = 0;
     self->directory_views = NULL;
-
     self->mpaned = myfm_multi_paned_new ();
+    self->pane_scroll = GTK_SCROLLED_WINDOW (gtk_scrolled_window_new (NULL, NULL));
+
 }
 
 static void myfm_window_class_init (MyFMWindowClass *cls)
