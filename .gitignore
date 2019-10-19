@@ -1,8 +1,11 @@
 .idea/
-CMakeLists.txt
+.ccls-cache/
 cmake-build-debug/
-myfm-application-trash.c
-myfm-window-trash.c
+build/
 test_dir/
 trash/
+CMakeLists.txt
+compile_commands.json
+gtk.supp
+vgdump*
 
