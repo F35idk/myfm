@@ -276,6 +276,11 @@ void myfm_directory_view_refresh_all_async (MyFMDirectoryView *self)
     myfm_directory_view_fill_store_async (self);
 }
 
+MyFMFile *myfm_directory_view_get_directory (MyFMDirectoryView *self)
+{
+    return self->directory;
+}
+
 /* ------------------------------------------------------------------------------------------ *
  *  CALLBACKS START
  * ------------------------------------------------------------------------------------------ */
@@ -316,7 +321,10 @@ static void next_files_callback (GObject *file_enumerator, GAsyncResult *result,
         while (current_node) {
 
             child_info = current_node->data;
-            const char *child_name = g_file_info_get_display_name (child_info); // TODO: no free
+
+            // TODO: if g_file_info_get_is_hidden ()
+
+            const char *child_name = g_file_info_get_display_name (child_info);
             GFile *child_g_file = g_file_get_child_for_display_name (parent_dir, child_name, &error);
 
             if (error) {

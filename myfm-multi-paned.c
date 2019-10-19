@@ -17,7 +17,9 @@ struct _MyFMMultiPaned {
 
 G_DEFINE_TYPE (MyFMMultiPaned, myfm_multi_paned, GTK_TYPE_PANED)
 
-static void myfm_multi_paned_update_size (MyFMMultiPaned *self)
+/* call this to update the size after truncating/adding. emits signals that parents
+ * can connect to to scroll themselves */
+void myfm_multi_paned_update_size (MyFMMultiPaned *self)
 {
     gint new_x, new_y;
     if (gtk_widget_translate_coordinates (GTK_WIDGET (self->inner_pane),
@@ -29,7 +31,7 @@ static void myfm_multi_paned_update_size (MyFMMultiPaned *self)
             g_signal_emit_by_name (self, "expand");
             gtk_widget_set_size_request (GTK_WIDGET (self), new_x + self->default_pane_size * 2, -1);
         }
-        else if (new_x + self->default_pane_size == prev_x) {
+        else if (new_x + self->default_pane_size * 2 == prev_x) {
             return;
         }
         else {
@@ -73,8 +75,6 @@ void myfm_multi_paned_add (MyFMMultiPaned *self, GtkWidget *child)
     }
 
     self->n_panes += 1;
-
-    myfm_multi_paned_update_size (self);
 }
 
 /* removes all children in self from index and onwards */
@@ -124,14 +124,13 @@ static void myfm_multi_paned_class_init (MyFMMultiPanedClass *cls)
 
     object_cls->constructed = myfm_multi_paned_constructed;
 
-    /* signal emitted when mpaned is about to expand. used so scrollable
-     * parent widgets can connect and update their h_alignment */
+    /* signals emitted when myfm_multi_paned_update_size is called, before
+     * mpaned expands/shrinks. used so scrollable parent widgets can connect and
+     * update their adjustment."shrink" signal also passes the position inside
+     * self that mpaned will shrink to. */
     g_signal_new ("expand", MYFM_MULTI_PANED_TYPE,
                   G_SIGNAL_RUN_FIRST, 0, NULL, NULL,
                   NULL, G_TYPE_NONE, 0, NULL);
-
-    /* signal emitted when mpaned is about to shrink/be concatenated. also
-     * passes the location inside mpaned that mpaned will shrink to */
     g_signal_new ("shrink", MYFM_MULTI_PANED_TYPE,
                   G_SIGNAL_RUN_FIRST, 0, NULL, NULL,
                   NULL, G_TYPE_NONE, 1, G_TYPE_DOUBLE);

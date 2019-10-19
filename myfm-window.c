@@ -32,6 +32,7 @@ struct _MyFMWindow {
 
 G_DEFINE_TYPE (MyFMWindow, myfm_window, GTK_TYPE_APPLICATION_WINDOW)
 
+// TODO: REPLACE PRINTFS WITH G_DEBUGS!
 static void mpaned_scroll_left_callback (MyFMMultiPaned *mpaned, gdouble scroll_dest, gpointer pane_scroll)
 {
     gboolean return_val;
@@ -103,6 +104,7 @@ static void myfm_window_open_dir_async (MyFMWindow *self, MyFMFile *dir, gint di
     dirview_scroll = GTK_SCROLLED_WINDOW (gtk_scrolled_window_new (NULL, NULL));
     gtk_container_add (GTK_CONTAINER (dirview_scroll), GTK_WIDGET (dirview));
     myfm_multi_paned_add (self->mpaned, GTK_WIDGET (dirview_scroll));
+    myfm_multi_paned_update_size (self->mpaned);
     gtk_widget_show (GTK_WIDGET (dirview_scroll));
 }
 
@@ -127,15 +129,23 @@ void myfm_window_open_file_async (MyFMWindow *self, MyFMFile *file, gint dirview
  * the window as well). make sure to pass valid directory views into this - the function itself does no checking */
 void myfm_window_close_directory_view (MyFMWindow *self, MyFMDirectoryView *dirview)
 {
-    GList *element = g_list_find (self->directory_views, dirview);
+    gint index;
+    GList *element;
+
+    index = myfm_window_get_directory_view_index (self, dirview); /* get index before view is removed */
+    element = g_list_find (self->directory_views, dirview);
     while (element != NULL) {
         GList *next = element->next; /* store pointer to next before it changes */
+        MyFMDirectoryView *current_dirview = MYFM_DIRECTORY_VIEW (element->data);
+        MyFMFile *dir = myfm_directory_view_get_directory (current_dirview);
+        /* set open_dir to false to prevent recursive closes on already removed directories */
+        dir->is_open_dir = FALSE;
         self->directory_views = g_list_remove (self->directory_views, element->data);
         element = next;
     }
 
-    gint index = myfm_window_get_directory_view_index (self, dirview);
     myfm_multi_paned_truncate_by_index (self->mpaned, index);
+    myfm_multi_paned_update_size (self->mpaned);
 }
 
 MyFMDirectoryView *myfm_window_get_next_directory_view (MyFMWindow *self, MyFMDirectoryView *dirview)
@@ -189,6 +199,11 @@ static void myfm_window_constructed (GObject *object)
     self = MYFM_WINDOW (object);
 
     gtk_window_set_default_size (GTK_WINDOW (self), self->default_width, self->default_height);
+
+    // FIXME: JUST A HIDE SCROLLBAR TEST
+    gtk_scrolled_window_set_policy (self->pane_scroll, GTK_POLICY_ALWAYS, GTK_POLICY_AUTOMATIC);
+    GtkWidget *scrollbar = gtk_scrolled_window_get_hscrollbar (self->pane_scroll);
+    gtk_widget_hide (scrollbar);
 
     gtk_container_add (GTK_CONTAINER (self->pane_scroll), GTK_WIDGET (self->mpaned));
     gtk_container_add (GTK_CONTAINER (self), GTK_WIDGET (self->pane_scroll));

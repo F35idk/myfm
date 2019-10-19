@@ -10,6 +10,7 @@ G_DECLARE_FINAL_TYPE (MyFMMultiPaned, myfm_multi_paned, MYFM, MULTI_PANED, GtkPa
 
 MyFMMultiPaned *myfm_multi_paned_new             (void);
 void myfm_multi_paned_set_pane_sizes             (MyFMMultiPaned *self, guint default_size, guint min_size);
+void myfm_multi_paned_update_size                (MyFMMultiPaned *self);
 void myfm_multi_paned_add                        (MyFMMultiPaned *self, GtkWidget *child);
 void myfm_multi_paned_truncate_by_index          (MyFMMultiPaned *self, guint index);
 
