@@ -18,8 +18,7 @@ struct _MyFMWindow {
     /* ordered list of directory views (columns in the file manager) */
     GList *directory_views;
 
-    /* widget containing each directory view. allows them to be
-     * resized freely */
+    /* widget containing each directory view that allows them to be resized freely */
     MyFMMultiPaned *mpaned;
 
     /* parent of mpaned that allows horizontal scrolling */
@@ -45,15 +44,11 @@ static void mpaned_scroll_left_callback (MyFMMultiPaned *mpaned, gdouble scroll_
     page_size = gtk_adjustment_get_page_size (adj);
     current_val = gtk_adjustment_get_value (adj);
 
-    printf ("current val :: %f, minus scroll dest :: %f plus page size :: %f \n\n\n\n\n\n\n\n", current_val, scroll_dest, page_size);
-    printf ("scroll_amt :: %f \n\n\n\n\n\n\n\n", current_val - scroll_dest + page_size);
-
     if (scroll_dest - page_size < 0)
         step_incr = current_val;
     else
         step_incr = current_val - scroll_dest + page_size;
 
-    printf ("step_incr :: %f \n\n\n\n\n\n\n\n", step_incr);
     gtk_adjustment_set_step_increment (adj, step_incr);
     g_signal_emit_by_name (GTK_SCROLLED_WINDOW (pane_scroll), "scroll-child", GTK_SCROLL_STEP_LEFT, TRUE, &return_val);
 }
@@ -77,7 +72,7 @@ static void myfm_window_open_dir_async (MyFMWindow *self, MyFMFile *dir, gint di
     GtkScrolledWindow *dirview_scroll;
 
     // FIXME: only if the opening succeeds? it kind of has to if this function is even called though
-    dir->is_open_dir = TRUE;
+    myfm_file_set_is_open (dir, TRUE);
 
     /* create new directory view and fill it with files */
     dirview = myfm_directory_view_new (dir);
@@ -117,7 +112,7 @@ static void myfm_window_open_other_async (MyFMWindow *self, MyFMFile *file)
 /* main function for opening files */
 void myfm_window_open_file_async (MyFMWindow *self, MyFMFile *file, gint dirview_index)
 {
-    if (file->filetype != G_FILE_TYPE_DIRECTORY)
+    if (myfm_file_get_filetype (file) != G_FILE_TYPE_DIRECTORY)
         myfm_window_open_other_async (self, file);
     else
         myfm_window_open_dir_async (self, file, dirview_index);
@@ -139,7 +134,7 @@ void myfm_window_close_directory_view (MyFMWindow *self, MyFMDirectoryView *dirv
         MyFMDirectoryView *current_dirview = MYFM_DIRECTORY_VIEW (element->data);
         MyFMFile *dir = myfm_directory_view_get_directory (current_dirview);
         /* set open_dir to false to prevent recursive closes on already removed directories */
-        dir->is_open_dir = FALSE;
+        myfm_file_set_is_open (dir, FALSE);
         self->directory_views = g_list_remove (self->directory_views, element->data);
         element = next;
     }
@@ -151,7 +146,10 @@ void myfm_window_close_directory_view (MyFMWindow *self, MyFMDirectoryView *dirv
 MyFMDirectoryView *myfm_window_get_next_directory_view (MyFMWindow *self, MyFMDirectoryView *dirview)
 {
     GList *element = g_list_find (self->directory_views, dirview);
-    return element->next->data;
+    if (element->next)
+        return element->next->data;
+    else
+        return NULL;
 }
 
 gint myfm_window_get_directory_view_index (MyFMWindow *self, MyFMDirectoryView *dirview)
@@ -200,7 +198,8 @@ static void myfm_window_constructed (GObject *object)
 
     gtk_window_set_default_size (GTK_WINDOW (self), self->default_width, self->default_height);
 
-    // FIXME: JUST A HIDE SCROLLBAR TEST
+    /* hide scrollbar */
+    /* TODO: make configurable */
     gtk_scrolled_window_set_policy (self->pane_scroll, GTK_POLICY_ALWAYS, GTK_POLICY_AUTOMATIC);
     GtkWidget *scrollbar = gtk_scrolled_window_get_hscrollbar (self->pane_scroll);
     gtk_widget_hide (scrollbar);
@@ -222,7 +221,6 @@ static void myfm_window_init (MyFMWindow *self)
     self->directory_views = NULL;
     self->mpaned = myfm_multi_paned_new ();
     self->pane_scroll = GTK_SCROLLED_WINDOW (gtk_scrolled_window_new (NULL, NULL));
-
 }
 
 static void myfm_window_class_init (MyFMWindowClass *cls)

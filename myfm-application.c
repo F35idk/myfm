@@ -37,7 +37,8 @@ static void myfm_application_open (GApplication *app, GFile **files,
     for (int i = 0; i < n_files; i++) {
         MyFMWindow *win = myfm_window_new (MYFM_APPLICATION (app));
         MyFMFile *myfm_file = myfm_file_from_g_file (files[i]);
-        g_object_ref (files[i]); /* the files are (seemingly) not kept alive unless we ref them */
+        /* normally we would ref the g_files here, since they're freed when this function exits.
+         * but myfm_file_from_g_file () takes care of that for us, so there's no need */
         myfm_window_open_file_async (win, myfm_file, -1);
         myfm_file_unref (myfm_file);
         gtk_window_present (GTK_WINDOW (win));
