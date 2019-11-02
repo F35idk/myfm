@@ -7,8 +7,8 @@
 
 #include <gtk/gtk.h>
 
-#define MYFM_APPLICATION_TYPE (myfm_application_get_type ())
-G_DECLARE_FINAL_TYPE (MyFMApplication, myfm_application, MYFM, APPLICATION, GtkApplication)
+#define MYFM_TYPE_APPLICATION (myfm_application_get_type ())
+G_DECLARE_FINAL_TYPE          (MyFMApplication, myfm_application, MYFM, APPLICATION, GtkApplication)
 
 MyFMApplication *myfm_application_new (void);
 

@@ -96,7 +96,7 @@ static void myfm_directory_view_on_file_renamed (MyFMDirectoryView *self, GFile 
                     myfm_directory_view_refresh_files_async (next);
 
                     /* this directory view might also have open subdirectories and directory views that are in need of refreshing.
-                     * instead of recursively updating all of them (a pain to do), we just close them (for now, at least) */
+                     * instead of recursively updating all of these (a pain to do), we just close them (for now, at least) */
                     if (myfm_file_is_open (next->directory))
                         myfm_window_close_directory_view (parent_win, myfm_window_get_next_directory_view (parent_win, next));
 
@@ -210,7 +210,7 @@ static void myfm_directory_view_setup_store (MyFMDirectoryView *self)
 {
     GtkListStore *store;
 
-    store = gtk_list_store_new (1, G_TYPE_POINTER); /* TODO: use boxed? simpler memory management */
+    store = gtk_list_store_new (1, G_TYPE_POINTER); /* use MYFM_TYPE_FILE? would simplify some of the memory management */
     gtk_tree_view_set_model (GTK_TREE_VIEW (self), GTK_TREE_MODEL (store));
     g_object_unref (store);
 }
@@ -449,7 +449,7 @@ static void myfm_directory_view_class_init (MyFMDirectoryViewClass *cls)
     widget_cls->destroy = myfm_directory_view_destroy;
 
     /* signal to emit when all files in dir are added (async) to store. */
-    g_signal_new ("filled", MYFM_DIRECTORY_VIEW_TYPE,
+    g_signal_new ("filled", MYFM_TYPE_DIRECTORY_VIEW,
                   G_SIGNAL_RUN_FIRST, 0, NULL, NULL,
                   NULL, G_TYPE_NONE, 0, NULL);
 }
@@ -461,7 +461,7 @@ MyFMDirectoryView *myfm_directory_view_new (MyFMFile *directory)
 {
     MyFMDirectoryView *dirview;
 
-    dirview = g_object_new (MYFM_DIRECTORY_VIEW_TYPE, NULL);
+    dirview = g_object_new (MYFM_TYPE_DIRECTORY_VIEW, NULL);
     dirview->directory = directory;
     myfm_file_ref (directory);
     myfm_directory_view_setup_monitor (dirview);

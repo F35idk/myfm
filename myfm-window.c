@@ -118,8 +118,6 @@ void myfm_window_open_file_async (MyFMWindow *self, MyFMFile *file, gint dirview
         myfm_window_open_dir_async (self, file, dirview_index);
 }
 
-// TODO: MOVE FUNCTION DESCRIPTIONS INTO HEADER? MAYBE KEEP THEM IN BOTH HEADER AND IMPL FILES???????????????????????????????????????????????
-
 /* function for closing any open directory view (and thus all directory views to the right of it in
  * the window as well). make sure to pass valid directory views into this - the function itself does no checking */
 void myfm_window_close_directory_view (MyFMWindow *self, MyFMDirectoryView *dirview)
@@ -237,5 +235,5 @@ static void myfm_window_class_init (MyFMWindowClass *cls)
 
 MyFMWindow *myfm_window_new (MyFMApplication *app)
 {
-    return g_object_new (MYFM_WINDOW_TYPE, "application", app, NULL);
+    return g_object_new (MYFM_TYPE_WINDOW, "application", app, NULL);
 }

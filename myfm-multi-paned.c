@@ -128,10 +128,10 @@ static void myfm_multi_paned_class_init (MyFMMultiPanedClass *cls)
      * mpaned expands/shrinks. used so scrollable parent widgets can connect and
      * update their adjustment."shrink" signal also passes the position inside
      * self that mpaned will shrink to. */
-    g_signal_new ("expand", MYFM_MULTI_PANED_TYPE,
+    g_signal_new ("expand", MYFM_TYPE_MULTI_PANED,
                   G_SIGNAL_RUN_FIRST, 0, NULL, NULL,
                   NULL, G_TYPE_NONE, 0, NULL);
-    g_signal_new ("shrink", MYFM_MULTI_PANED_TYPE,
+    g_signal_new ("shrink", MYFM_TYPE_MULTI_PANED,
                   G_SIGNAL_RUN_FIRST, 0, NULL, NULL,
                   NULL, G_TYPE_NONE, 1, G_TYPE_DOUBLE);
 }
@@ -147,5 +147,5 @@ static void myfm_multi_paned_init (MyFMMultiPaned *self)
 
 MyFMMultiPaned *myfm_multi_paned_new (void)
 {
-    return g_object_new (MYFM_MULTI_PANED_TYPE, NULL);
+    return g_object_new (MYFM_TYPE_MULTI_PANED, NULL);
 }

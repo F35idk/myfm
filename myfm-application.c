@@ -78,6 +78,6 @@ static void myfm_application_class_init (MyFMApplicationClass *cls)
 
 MyFMApplication *myfm_application_new (void)
 {
-    return g_object_new (MYFM_APPLICATION_TYPE, "application-id", "com.github.F35idk.myfm",
+    return g_object_new (MYFM_TYPE_APPLICATION, "application-id", "com.github.F35idk.myfm",
                         "flags", G_APPLICATION_HANDLES_OPEN, NULL);
 }
