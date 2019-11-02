@@ -18,6 +18,8 @@ G_DECLARE_FINAL_TYPE             (MyFMDirectoryView, myfm_directory_view, MYFM, 
 
 MyFMDirectoryView *myfm_directory_view_new                 (MyFMFile *directory);
 MyFMFile          *myfm_directory_view_get_directory       (MyFMDirectoryView *self);
+void              myfm_directory_view_set_show_hidden      (MyFMDirectoryView *self, gboolean show_hidden);
+gboolean          myfm_directory_view_get_show_hidden      (MyFMDirectoryView *self);
 void              myfm_directory_view_fill_store_async     (MyFMDirectoryView *self);
 void              myfm_directory_view_refresh_files_async  (MyFMDirectoryView *self);
 

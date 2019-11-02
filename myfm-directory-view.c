@@ -13,6 +13,7 @@ struct _MyFMDirectoryView {
     MyFMFile *directory;
     GFileMonitor *directory_monitor;
     GCancellable *IO_canceller;
+    gboolean show_hidden;
 };
 
 G_DEFINE_TYPE (MyFMDirectoryView, myfm_directory_view, GTK_TYPE_TREE_VIEW)
@@ -187,6 +188,17 @@ static void myfm_filename_data_func (GtkTreeViewColumn *tree_column, GtkCellRend
         g_object_set (cell, "text", myfm_file_get_display_name (myfm_file), NULL);
 }
 
+/* sets whether to display hidden files (dotfiles) */
+void myfm_directory_view_set_show_hidden (MyFMDirectoryView *self, gboolean show_hidden)
+{
+    self->show_hidden = show_hidden;
+}
+
+gboolean myfm_directory_view_get_show_hidden (MyFMDirectoryView *self)
+{
+    return self->show_hidden;
+}
+
 /* foreach function to be called on each file in the directory view's
  * list store. unrefs and sets to null a single file in the store */
 static gboolean clear_file_in_store (GtkTreeModel *model, GtkTreePath *path, GtkTreeIter *iter, gpointer data)
@@ -198,7 +210,6 @@ static gboolean clear_file_in_store (GtkTreeModel *model, GtkTreePath *path, Gtk
 
     gtk_tree_model_get (model, iter, 0, &myfm_file, -1);
     if (myfm_file) {
-        // myfm_file_free ((MyFMFile *) myfm_file);
         myfm_file_unref ((MyFMFile*) myfm_file);
         gtk_list_store_set (GTK_LIST_STORE (model), iter, 0, NULL, -1);
     }
@@ -294,7 +305,7 @@ static void myfm_directory_view_next_files_callback (GObject *file_enumerator, G
     else {
         /* enumerator returned successfully */
         GtkTreeIter iter;
-        GFileInfo *child_info; /* doesn't need autoptr */
+        GFileInfo *child_info; /* doesn't need auto_ptr */
         GList *current_node = directory_list;
         GFile *parent_dir = myfm_file_get_g_file (MYFM_DIRECTORY_VIEW (self)->directory);
         GtkListStore *store = GTK_LIST_STORE (gtk_tree_view_get_model (GTK_TREE_VIEW (self)));
@@ -303,7 +314,13 @@ static void myfm_directory_view_next_files_callback (GObject *file_enumerator, G
             /* iterate over directory_list and add files to store */
             child_info = current_node->data;
 
-            // TODO: if g_file_info_get_is_hidden ()
+            if (!MYFM_DIRECTORY_VIEW (self)->show_hidden) {
+                if (child_info && g_file_info_get_is_hidden (child_info)) {
+                    g_object_unref (child_info);
+                    current_node = current_node->next;
+                    continue;
+                }
+            }
 
             const char *child_name = g_file_info_get_display_name (child_info);
             GFile *child_g_file = g_file_get_child_for_display_name (parent_dir, child_name, &error);
@@ -435,6 +452,7 @@ static void myfm_directory_view_constructed (GObject *object)
 static void myfm_directory_view_init (MyFMDirectoryView *self)
 {
     self->IO_canceller = g_cancellable_new ();
+    self->show_hidden = FALSE; /* TODO: make configurable */
 }
 
 static void myfm_directory_view_class_init (MyFMDirectoryViewClass *cls)
