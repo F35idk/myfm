@@ -51,6 +51,10 @@ static void myfm_directory_view_on_dir_change (GFileMonitor *monitor, GFile *fil
    switch (event_type) {
        case G_FILE_MONITOR_EVENT_RENAMED :
            myfm_directory_view_on_file_renamed (self, file, other_file);
+           /* redraw to make sure the directory view instantly updates the display name of the file */
+           /* TODO: connect queue_draw () to after display name has been updated (async)? */
+           /* also TODO: specify area to redraw? */
+           gtk_widget_queue_draw (GTK_WIDGET (self));
            break;
 
        case G_FILE_MONITOR_EVENT_MOVED_OUT :
@@ -85,10 +89,10 @@ static void myfm_directory_view_on_file_renamed (MyFMDirectoryView *self, GFile 
 
             if (myfm_file != NULL && g_file_equal (myfm_file_get_g_file (myfm_file), orig_g_file)) {
 
-                myfm_file_update (myfm_file, new_g_file);
+                myfm_file_update_async (myfm_file, new_g_file);
 
-                /* if the file is opened (and thus the directory view to the right of self is displaying its contents) we
-                 * make sure to refresh this directory view as well */
+                /* if the file is opened (and thus the directory view to the right of self is displaying its contents)
+                 * we make sure to refresh this directory view as well */
                 if (myfm_file_is_open (myfm_file)) {
 
                     MyFMWindow *parent_win = MYFM_WINDOW(gtk_widget_get_toplevel (GTK_WIDGET (self)));
@@ -96,11 +100,11 @@ static void myfm_directory_view_on_file_renamed (MyFMDirectoryView *self, GFile 
 
                     myfm_directory_view_refresh_files_async (next);
 
-                    /* this directory view might also have open subdirectories and directory views that are in need of refreshing.
-                     * instead of recursively updating all of these (a pain to do), we just close them (for now, at least) */
+                    /* this directory view might also have open subdirectories and directory views that are in need of
+                     * refreshing. so instead of recursively updating all of these (which would be a pain to do), we
+                     * just close them (for now, at least) */
                     if (myfm_file_is_open (next->directory))
                         myfm_window_close_directory_view (parent_win, myfm_window_get_next_directory_view (parent_win, next));
-
                 }
             }
         } while (gtk_tree_model_iter_next (GTK_TREE_MODEL (store), &iter));
@@ -177,7 +181,7 @@ static void myfm_directory_view_on_file_moved_in (MyFMDirectoryView *self, GFile
 }
 
 /* GtkCellRenderer data function for getting the display name of a file in a cell */
-static void myfm_filename_data_func (GtkTreeViewColumn *tree_column, GtkCellRenderer *cell,
+static void myfm_file_name_data_func (GtkTreeViewColumn *tree_column, GtkCellRenderer *cell,
                                      GtkTreeModel *tree_model, GtkTreeIter *iter, gpointer user_data)
 {
     gpointer myfm_file;
@@ -186,6 +190,30 @@ static void myfm_filename_data_func (GtkTreeViewColumn *tree_column, GtkCellRend
 
     if (myfm_file)
         g_object_set (cell, "text", myfm_file_get_display_name (myfm_file), NULL);
+}
+
+static void myfm_file_icon_data_func (GtkTreeViewColumn *tree_column, GtkCellRenderer *cell,
+                                     GtkTreeModel *tree_model, GtkTreeIter *iter, gpointer user_data)
+{
+    gpointer myfm_file;
+
+    gtk_tree_model_get (tree_model, iter, 0, &myfm_file, -1); /* out myfm_file, pass by value */
+
+    if (myfm_file) {
+        GIcon *icon;
+        GtkIconSize icon_size;
+        MyFMApplication *app;
+
+        app = MYFM_APPLICATION (gtk_window_get_application (GTK_WINDOW (gtk_widget_get_toplevel
+                                (gtk_tree_view_column_get_tree_view (tree_column)))));
+        icon_size = myfm_application_get_icon_size (app);
+        icon = myfm_file_get_icon (myfm_file);
+
+        if (icon) { /* icon should never be null, but we check anyway */
+            g_object_set (cell, "gicon", icon, NULL);
+            g_object_set (cell, "stock-size", icon_size, NULL);
+        }
+    }
 }
 
 /* sets whether to display hidden files (dotfiles) */
@@ -210,7 +238,7 @@ static gboolean clear_file_in_store (GtkTreeModel *model, GtkTreePath *path, Gtk
 
     gtk_tree_model_get (model, iter, 0, &myfm_file, -1);
     if (myfm_file) {
-        myfm_file_unref ((MyFMFile*) myfm_file);
+        myfm_file_unref (myfm_file);
         gtk_list_store_set (GTK_LIST_STORE (model), iter, 0, NULL, -1);
     }
 
@@ -221,7 +249,8 @@ static void myfm_directory_view_setup_store (MyFMDirectoryView *self)
 {
     GtkListStore *store;
 
-    store = gtk_list_store_new (1, G_TYPE_POINTER); /* use MYFM_TYPE_FILE? would simplify some of the memory management */
+    store = gtk_list_store_new (2,G_TYPE_POINTER, GDK_TYPE_PIXBUF); /* use MYFM_TYPE_FILE? would simplify some of the memory management */
+    // store = gtk_list_store_new (2, GDK_TYPE_PIXBUF, G_TYPE_POINTER); /* use MYFM_TYPE_FILE? would simplify some of the memory management */
     gtk_tree_view_set_model (GTK_TREE_VIEW (self), GTK_TREE_MODEL (store));
     g_object_unref (store);
 }
@@ -231,12 +260,21 @@ static void myfm_directory_view_setup_files_column (MyFMDirectoryView *self)
     GtkCellRenderer *renderer;
     GtkTreeViewColumn *col;
 
-    renderer = gtk_cell_renderer_text_new ();
-    col = gtk_tree_view_column_new_with_attributes ("col", renderer, NULL);
-    gtk_tree_view_column_set_cell_data_func (col, renderer, myfm_filename_data_func, NULL, NULL);
-    gtk_tree_view_column_set_resizable (col, TRUE);
-    gtk_tree_view_column_set_expand (col, TRUE);
+    col = gtk_tree_view_column_new ();
 
+    renderer = gtk_cell_renderer_pixbuf_new ();
+    gtk_tree_view_column_pack_start (col, renderer, FALSE);
+    gtk_tree_view_column_set_attributes (col, renderer, NULL);
+    gtk_tree_view_column_set_cell_data_func (col, renderer, myfm_file_icon_data_func, NULL, NULL);
+
+
+    renderer = gtk_cell_renderer_text_new ();
+    gtk_cell_renderer_set_padding (renderer, 4, 1);
+    gtk_tree_view_column_pack_start (col, renderer, TRUE); // FALSE
+    gtk_tree_view_column_set_attributes (col, renderer, NULL); // "text", 0, NULL);
+    gtk_tree_view_column_set_cell_data_func (col, renderer, myfm_file_name_data_func, NULL, NULL);
+
+    gtk_tree_view_column_set_resizable (col, TRUE);
     gtk_tree_view_append_column (GTK_TREE_VIEW (self), col);
 }
 
@@ -333,8 +371,9 @@ static void myfm_directory_view_next_files_callback (GObject *file_enumerator, G
                 error = NULL; /* TODO: KEEP TABS */
             }
             else {
-                MyFMFile *child_myfm_file = myfm_file_new_with_info (child_g_file, g_strdup (child_name));
-                g_object_unref (child_g_file); /* myfm_file refs the g_file, so don't forget to unref it here */
+                // MyFMFile *child_myfm_file = myfm_file_new_with_info_async (child_g_file, child_info);
+                MyFMFile *child_myfm_file = myfm_file_new_with_info (child_g_file, child_info);
+                g_object_unref (child_g_file); /* myfm_file refs the g_file, so we make sure to unref it here */
                 gtk_list_store_append (store, &iter); /* out iter */
                 gtk_list_store_set (store, &iter, 0, (gpointer) child_myfm_file, -1);
                 g_object_unref (child_info);

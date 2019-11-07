@@ -10,6 +10,7 @@
 #define MYFM_TYPE_APPLICATION (myfm_application_get_type ())
 G_DECLARE_FINAL_TYPE          (MyFMApplication, myfm_application, MYFM, APPLICATION, GtkApplication)
 
-MyFMApplication *myfm_application_new (void);
+MyFMApplication *myfm_application_new          (void);
+GtkIconSize     myfm_application_get_icon_size (MyFMApplication *self);
 
 #endif //__MYFM_APPLICATION_H

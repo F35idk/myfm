@@ -12,9 +12,16 @@
 
 struct _MyFMApplication {
     GtkApplication parent_instance;
+    /* TODO: make configurable */
+    GtkIconSize icon_size;
 };
 
 G_DEFINE_TYPE (MyFMApplication, myfm_application, GTK_TYPE_APPLICATION)
+
+GtkIconSize myfm_application_get_icon_size (MyFMApplication *self)
+{
+    return self->icon_size;
+}
 
 /* application launched with no args */
 static void myfm_application_activate (GApplication *app)
@@ -61,6 +68,9 @@ static void myfm_application_finalize (GObject *object)
 
 static void myfm_application_init (MyFMApplication *self)
 {
+    /* FIXME: turns out this is deprecated. but it saves us a ton of speed and complexity, so.. */
+    /* TODO: instead of doing this, implement an entire gtk_icon_theme when this is needed in the future */
+    self->icon_size = gtk_icon_size_register ("default_icon_size", 20, 20);
 }
 
 static void myfm_application_class_init (MyFMApplicationClass *cls)

@@ -12,29 +12,52 @@ struct MyFMFilePrivate {
     gboolean is_open_dir;
     GFileType filetype;
     const char *IO_display_name;
+    GIcon *IO_g_icon;
     guint refcount;
     GCancellable *cancellable;
 };
 
 G_DEFINE_BOXED_TYPE (MyFMFile, myfm_file, myfm_file_ref, myfm_file_unref)
 
+static void myfm_file_setup_g_icon (MyFMFile *self, GFileInfo *info)
+{
+    self->priv->IO_g_icon = g_file_info_get_icon (info);
+    if (!self->priv->IO_g_icon) {
+        g_critical ("unable to set icon on myfm_file: '%s' \n",
+                    myfm_file_get_display_name (self));
+        /* use unknown file icon if icon can't be set */
+        self->priv->IO_g_icon = g_themed_icon_new ("unknown");
+    }
+
+    g_object_ref (self->priv->IO_g_icon);
+}
+
 /* TODO: expand func to initialize all IO dependent fields when these are added to myfm_file */
-static void myfm_file_display_name_callback (GObject *g_file, GAsyncResult *res, gpointer self)
+static void myfm_file_IO_fields_callback (GObject *g_file, GAsyncResult *res, gpointer self_ptr)
 {
     GFileInfo_autoptr info = NULL;
     GError_autoptr error = NULL;
+    MyFMFile *self;
+
+    self = (MyFMFile *) self_ptr;
 
     info = g_file_query_info_finish (G_FILE (g_file), res, &error);
 
     if (error) {
         g_object_unref (info); /* info is often null in case of error, so this might emit a warning */
-        g_critical ("unable to set display name on file: %s \n", error->message);
-        ((MyFMFile*) self)->priv->IO_display_name = NULL;
+        g_critical ("unable to initialize myfm_file: %s \n", error->message);
+        self->priv->IO_display_name = NULL;
     }
     else {
-        if (((MyFMFile *) self)->priv->IO_display_name)
-            g_free (((MyFMFile *) self)->priv->IO_display_name);
-        ((MyFMFile *) self)->priv->IO_display_name = g_strdup (g_file_info_get_display_name (info));
+        if (self->priv->IO_display_name)
+            g_free (self->priv->IO_display_name);
+
+        if (self->priv->IO_g_icon)
+            g_object_unref (self->priv->IO_g_icon);
+
+        self->priv->IO_display_name = g_strdup (g_file_info_get_display_name (info));
+        // myfm_file_setup_icon_async (self, info);
+        myfm_file_setup_g_icon (self, info);
     }
 
     myfm_file_unref (self);
@@ -43,14 +66,15 @@ static void myfm_file_display_name_callback (GObject *g_file, GAsyncResult *res,
 void myfm_file_init_io_fields_async (MyFMFile *self)
 {
     /* currently the only field that requires IO to be initialized is the display name */
-    g_file_query_info_async (self->priv->g_file, G_FILE_ATTRIBUTE_STANDARD_DISPLAY_NAME,
+    g_file_query_info_async (self->priv->g_file, "*",
                              G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS, G_PRIORITY_DEFAULT,
-                             self->priv->cancellable, myfm_file_display_name_callback, self);
+                             self->priv->cancellable, myfm_file_IO_fields_callback, self);
 
     /* keep file alive until callback is invoked to prevent potential use after free */
     myfm_file_ref (self);
 }
 
+/* synchronous constructor. isn't used except for at startup */
 MyFMFile *myfm_file_from_g_file (GFile *g_file)
 {
     MyFMFile *myfm_file;
@@ -64,14 +88,15 @@ MyFMFile *myfm_file_from_g_file (GFile *g_file)
         return myfm_file;
     }
 
-    info = g_file_query_info (g_file, G_FILE_ATTRIBUTE_STANDARD_DISPLAY_NAME,
+    info = g_file_query_info (g_file, "*",
                               G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS, NULL, &error);
 
     if (error) {
-        g_critical ("unable to set display name on file: %s \n", error->message);
+        g_critical ("unable to get info on file: %s \n", error->message);
     }
     else {
         myfm_file->priv->IO_display_name = g_strdup (g_file_info_get_display_name (info));
+        myfm_file_setup_g_icon (myfm_file, info);
     }
 
     /* valgrind tells me unref'ing is needed, despite
@@ -112,26 +137,26 @@ MyFMFile *myfm_file_new_without_io_fields (GFile *g_file)
     myfm_file->priv->cancellable = g_cancellable_new ();
     myfm_file->priv->filetype = g_file_query_file_type (g_file,
                                                   G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS, NULL);
+    // myfm_file->priv->icon_size = 20;
+    myfm_file->priv->IO_g_icon = NULL;
     myfm_file->priv->IO_display_name = NULL;
 
     return myfm_file;
 }
 
-/* TODO: in the future, this function should take a g_file_info instead of just the display name */
-/* initializes a myfm_file completely without doing any async IO. requires the ... (FIXME).
+/* initializes a myfm_file completely without doing any async IO. requires a g_file_info .
  * refs the g_file passed into it. */
-MyFMFile *myfm_file_new_with_info (GFile *g_file, const char *display_name)
+MyFMFile *myfm_file_new_with_info (GFile *g_file, GFileInfo *info)
 {
     MyFMFile *myfm_file;
 
     myfm_file = myfm_file_new_without_io_fields (g_file);
 
-    if (myfm_file == NULL) {
-        g_free (display_name);
+    if (myfm_file == NULL)
         return myfm_file;
-    }
 
-    myfm_file->priv->IO_display_name = display_name;
+    myfm_file->priv->IO_display_name = g_strdup (g_file_info_get_display_name (info));
+    myfm_file_setup_g_icon (myfm_file, info);
 
     return myfm_file;
 }
@@ -154,8 +179,7 @@ GFile *myfm_file_get_g_file (MyFMFile *self)
     return self->priv->g_file;
 }
 
-/* TODO: might eventually separate into "update_display_name" and "update" */
-void myfm_file_update (MyFMFile *self, GFile *new_g_file)
+void myfm_file_update_async (MyFMFile *self, GFile *new_g_file)
 {
     g_object_unref (self->priv->g_file);
     g_object_ref (new_g_file);
@@ -166,6 +190,10 @@ void myfm_file_update (MyFMFile *self, GFile *new_g_file)
     if (self->priv->IO_display_name) {
         g_free (self->priv->IO_display_name);
         self->priv->IO_display_name = NULL;
+    }
+    if (self->priv->IO_g_icon) {
+        g_object_unref (self->priv->IO_g_icon);
+        self->priv->IO_g_icon = NULL;
     }
 
     myfm_file_init_io_fields_async (self);
@@ -197,6 +225,11 @@ const char *myfm_file_get_display_name (MyFMFile *self)
         return " ";
 }
 
+GIcon *myfm_file_get_icon (MyFMFile *self)
+{
+    return self->priv->IO_g_icon;
+}
+
 void myfm_file_free (MyFMFile *self)
 {
     printf ("freeing: ");
@@ -210,6 +243,11 @@ void myfm_file_free (MyFMFile *self)
     if (self->priv->IO_display_name) {
         g_free (self->priv->IO_display_name);
         self->priv->IO_display_name = NULL;
+    }
+
+    if (self->priv->IO_g_icon) {
+        g_object_unref (self->priv->IO_g_icon);
+        self->priv->IO_g_icon = NULL;
     }
 
     /* cancel all IO on file */
