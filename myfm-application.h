@@ -1,6 +1,6 @@
-//
-// Created by f35 on 15.08.19.
-//
+/*
+ * Created by f35 on 15.08.19.
+*/
 
 #ifndef __MYFM_APPLICATION_H
 #define __MYFM_APPLICATION_H
@@ -13,4 +13,4 @@ G_DECLARE_FINAL_TYPE          (MyFMApplication, myfm_application, MYFM, APPLICAT
 MyFMApplication *myfm_application_new          (void);
 GtkIconSize     myfm_application_get_icon_size (MyFMApplication *self);
 
-#endif //__MYFM_APPLICATION_H
+#endif /* __MYFM_APPLICATION_H */

@@ -1,6 +1,6 @@
-//
-// Created by f35 on 21.08.19.
-//
+/*
+ * Created by f35 on 21.08.19.
+*/
 
 #ifndef __MYFM_FILE_H
 #define __MYFM_FILE_H
@@ -39,4 +39,4 @@ MyFMFile   *myfm_file_new_with_info         (GFile *g_file, GFileInfo *info);
 MyFMFile   *myfm_file_from_path             (const char *path);
 MyFMFile   *myfm_file_from_g_file           (GFile *g_file);
 
-#endif // __MYFM_FILE_H
+#endif /* __MYFM_FILE_H */

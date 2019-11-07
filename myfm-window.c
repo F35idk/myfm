@@ -1,6 +1,6 @@
-//
-// Created by f35 on 15.08.19.
-//
+/*
+ * Created by f35 on 15.08.19.
+*/
 
 #include <gtk/gtk.h>
 #include <glib.h>
@@ -31,7 +31,7 @@ struct _MyFMWindow {
 
 G_DEFINE_TYPE (MyFMWindow, myfm_window, GTK_TYPE_APPLICATION_WINDOW)
 
-// TODO: REPLACE PRINTFS WITH G_DEBUGS!
+/* TODO: REPLACE PRINTFS WITH G_DEBUGS! */
 static void mpaned_scroll_left_callback (MyFMMultiPaned *mpaned, gdouble scroll_dest, gpointer pane_scroll)
 {
     gboolean return_val;
@@ -71,7 +71,7 @@ static void myfm_window_open_dir_async (MyFMWindow *self, MyFMFile *dir, gint di
     MyFMDirectoryView *dirview;
     GtkScrolledWindow *dirview_scroll;
 
-    // FIXME: only if the opening succeeds? it kind of has to if this function is even called though
+    /* FIXME: only if the opening succeeds? it kind of has to if this function is even called though */
     myfm_file_set_is_open (dir, TRUE);
 
     /* create new directory view and fill it with files */
@@ -106,7 +106,7 @@ static void myfm_window_open_dir_async (MyFMWindow *self, MyFMFile *dir, gint di
 /* function for opening any file that is not a directory */
 static void myfm_window_open_other_async (MyFMWindow *self, MyFMFile *file)
 {
-    // TODO: fill in this
+    /* TODO: fill in this */
 }
 
 /* main function for opening files */

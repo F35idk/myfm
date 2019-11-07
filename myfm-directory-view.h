@@ -1,6 +1,6 @@
-//
-// Created by f35 on 07.09.19.
-//
+/*
+ * Created by f35 on 07.09.19.
+*/
 
 #ifndef __MYFM_DIRECTORY_VIEW_H
 #define __MYFM_DIRECTORY_VIEW_H
@@ -23,4 +23,4 @@ gboolean          myfm_directory_view_get_show_hidden      (MyFMDirectoryView *s
 void              myfm_directory_view_fill_store_async     (MyFMDirectoryView *self);
 void              myfm_directory_view_refresh_files_async  (MyFMDirectoryView *self);
 
-#endif // __MYFM_DIRECTORY_VIEW_H
+#endif /* __MYFM_DIRECTORY_VIEW_H */

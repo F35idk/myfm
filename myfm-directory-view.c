@@ -1,6 +1,6 @@
-//
-// Created by f35 on 07.09.19.
-//
+/*
+ * Created by f35 on 07.09.19.
+*/
 
 #include <gtk/gtk.h>
 
@@ -250,7 +250,6 @@ static void myfm_directory_view_setup_store (MyFMDirectoryView *self)
     GtkListStore *store;
 
     store = gtk_list_store_new (2,G_TYPE_POINTER, GDK_TYPE_PIXBUF); /* use MYFM_TYPE_FILE? would simplify some of the memory management */
-    // store = gtk_list_store_new (2, GDK_TYPE_PIXBUF, G_TYPE_POINTER); /* use MYFM_TYPE_FILE? would simplify some of the memory management */
     gtk_tree_view_set_model (GTK_TREE_VIEW (self), GTK_TREE_MODEL (store));
     g_object_unref (store);
 }
@@ -270,8 +269,8 @@ static void myfm_directory_view_setup_files_column (MyFMDirectoryView *self)
 
     renderer = gtk_cell_renderer_text_new ();
     gtk_cell_renderer_set_padding (renderer, 4, 1);
-    gtk_tree_view_column_pack_start (col, renderer, TRUE); // FALSE
-    gtk_tree_view_column_set_attributes (col, renderer, NULL); // "text", 0, NULL);
+    gtk_tree_view_column_pack_start (col, renderer, TRUE);
+    gtk_tree_view_column_set_attributes (col, renderer, NULL);
     gtk_tree_view_column_set_cell_data_func (col, renderer, myfm_file_name_data_func, NULL, NULL);
 
     gtk_tree_view_column_set_resizable (col, TRUE);
@@ -371,7 +370,6 @@ static void myfm_directory_view_next_files_callback (GObject *file_enumerator, G
                 error = NULL; /* TODO: KEEP TABS */
             }
             else {
-                // MyFMFile *child_myfm_file = myfm_file_new_with_info_async (child_g_file, child_info);
                 MyFMFile *child_myfm_file = myfm_file_new_with_info (child_g_file, child_info);
                 g_object_unref (child_g_file); /* myfm_file refs the g_file, so we make sure to unref it here */
                 gtk_list_store_append (store, &iter); /* out iter */

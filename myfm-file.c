@@ -1,6 +1,6 @@
-//
-// Created by f35 on 21.08.19.
-//
+/*
+ * Created by f35 on 21.08.19.
+*/
 
 #include <glib.h>
 #include <gio/gio.h>
@@ -108,7 +108,7 @@ MyFMFile *myfm_file_from_g_file (GFile *g_file)
 
 /* creates a new myfm_file without initializing the fields that require async IO.
  * refs the g_file passed into it */
-// TODO: static?
+/* TODO: static? */
 MyFMFile *myfm_file_new_without_io_fields (GFile *g_file)
 {
     MyFMFile *myfm_file;

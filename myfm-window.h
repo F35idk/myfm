@@ -1,6 +1,6 @@
-//
-// Created by f35 on 15.08.19.
-//
+/*
+ * Created by f35 on 15.08.19.
+*/
 
 #ifndef __MYFM_WINDOW_H
 #define __MYFM_WINDOW_H
@@ -20,4 +20,4 @@ gint              myfm_window_get_directory_view_index (MyFMWindow *self, MyFMDi
 MyFMDirectoryView *myfm_window_get_next_directory_view (MyFMWindow *self, MyFMDirectoryView *dirview);
 void              myfm_window_close_directory_view     (MyFMWindow *self, MyFMDirectoryView *dirview);
 
-#endif //__MYFM_APPLICATION_WINDOW_H
+#endif /* __MYFM_APPLICATION_WINDOW_H */

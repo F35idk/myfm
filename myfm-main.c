@@ -1,6 +1,6 @@
-//
-// Created by f35 on 15.08.19.
-//
+/*
+ * Created by f35 on 15.08.19.
+*/
 
 #include <gtk/gtk.h>
 
