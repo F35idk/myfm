@@ -19,6 +19,14 @@ struct MyFMFilePrivate {
 
 G_DEFINE_BOXED_TYPE (MyFMFile, myfm_file, myfm_file_ref, myfm_file_unref)
 
+/* since myfm_file itself isn't a g_object, we can't emit and connect to signals on it directly.
+ * so we use this convenience function to connect to signals on the self->g_file instead */
+void myfm_file_connect_callback_on_g_file (MyFMFile *self, const char *signal_name,
+                                           void (*callback) (GObject *, gpointer, gpointer), gpointer data)
+{
+    g_signal_connect (self->priv->g_file, signal_name, callback, data);
+}
+
 static void myfm_file_setup_g_icon (MyFMFile *self, GFileInfo *info)
 {
     self->priv->IO_g_icon = g_file_info_get_icon (info);
@@ -32,7 +40,6 @@ static void myfm_file_setup_g_icon (MyFMFile *self, GFileInfo *info)
     g_object_ref (self->priv->IO_g_icon);
 }
 
-/* TODO: expand func to initialize all IO dependent fields when these are added to myfm_file */
 static void myfm_file_IO_fields_callback (GObject *g_file, GAsyncResult *res, gpointer self_ptr)
 {
     GFileInfo_autoptr info = NULL;
@@ -44,6 +51,7 @@ static void myfm_file_IO_fields_callback (GObject *g_file, GAsyncResult *res, gp
     info = g_file_query_info_finish (G_FILE (g_file), res, &error);
 
     if (error) {
+        /* TODO: consider unref'ing the myfm_file */
         g_object_unref (info); /* info is often null in case of error, so this might emit a warning */
         g_critical ("unable to initialize myfm_file: %s \n", error->message);
         self->priv->IO_display_name = NULL;
@@ -56,14 +64,16 @@ static void myfm_file_IO_fields_callback (GObject *g_file, GAsyncResult *res, gp
             g_object_unref (self->priv->IO_g_icon);
 
         self->priv->IO_display_name = g_strdup (g_file_info_get_display_name (info));
-        // myfm_file_setup_icon_async (self, info);
         myfm_file_setup_g_icon (self, info);
+
+        g_signal_emit_by_name (self->priv->g_file, "construct-finished", self);
     }
 
+    /* decrement refcount when we're done */
     myfm_file_unref (self);
 }
 
-void myfm_file_init_io_fields_async (MyFMFile *self)
+static void myfm_file_init_io_fields_async (MyFMFile *self)
 {
     /* currently the only field that requires IO to be initialized is the display name */
     g_file_query_info_async (self->priv->g_file, "*",
@@ -72,6 +82,65 @@ void myfm_file_init_io_fields_async (MyFMFile *self)
 
     /* keep file alive until callback is invoked to prevent potential use after free */
     myfm_file_ref (self);
+}
+
+/* main constructor - most other constructors call this to start. creates a new myfm_file
+ * without initializing the fields that require async IO. refs the g_file passed into it */
+static MyFMFile *myfm_file_new_without_io_fields (GFile *g_file)
+{
+    MyFMFile *myfm_file;
+
+    g_object_ref (g_file);
+
+    myfm_file = malloc (sizeof (MyFMFile));
+
+    if (myfm_file == NULL) {
+        g_critical ("malloc returned NULL, unable to create myfm_file \n");
+        g_object_unref (g_file);
+        return myfm_file;
+    }
+
+    myfm_file->priv = malloc (sizeof (struct MyFMFilePrivate));
+
+    if (myfm_file->priv == NULL) {
+        g_critical ("malloc returned NULL, unable to create myfm_file \n");
+        g_object_unref (g_file);
+        return myfm_file;
+    }
+
+    myfm_file->priv->g_file = g_file;
+    myfm_file->priv->is_open_dir = FALSE;
+    myfm_file->priv->refcount = 1;
+    myfm_file->priv->cancellable = g_cancellable_new ();
+    myfm_file->priv->filetype = g_file_query_file_type (g_file,
+                                                        G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS, NULL);
+    myfm_file->priv->IO_g_icon = NULL;
+    myfm_file->priv->IO_display_name = NULL;
+
+
+    /* signal to be emitted when myfm_file_from_g_file_async () is finished. since
+     * myfm_file isn't g_object derived, we create and emit the signal on the g_file */
+    g_signal_new ("construct-finished", G_TYPE_FILE,
+                  G_SIGNAL_RUN_FIRST, 0, NULL, NULL,
+                  NULL, G_TYPE_NONE, 1, G_TYPE_POINTER); /* gpointer to myfm_file */
+
+    return myfm_file;
+}
+
+/* asynchronous constructor. should be used instead of the sync alternative to avoid
+ * blocking the main loop. the myfm_file's display name and icon will most likely not
+ * have been initialized upon returning - these are (currently) the only fields that
+ * require async IO. querying for them with myfm_file_get_icon () and
+ * myfm_file_get_display_name () will then simply return null and " ". to access them
+ * as soon as they are ready, connect to the "construct-finished" signal with
+ * myfm_file_connect_callback_on_g_file (). */
+MyFMFile *myfm_file_from_g_file_async (GFile *g_file)
+{
+    MyFMFile *myfm_file;
+    myfm_file = myfm_file_new_without_io_fields (g_file);
+    myfm_file_init_io_fields_async (myfm_file);
+
+    return myfm_file;
 }
 
 /* synchronous constructor. isn't used except for at startup */
@@ -106,45 +175,7 @@ MyFMFile *myfm_file_from_g_file (GFile *g_file)
     return myfm_file;
 }
 
-/* creates a new myfm_file without initializing the fields that require async IO.
- * refs the g_file passed into it */
-/* TODO: static? */
-MyFMFile *myfm_file_new_without_io_fields (GFile *g_file)
-{
-    MyFMFile *myfm_file;
-
-    g_object_ref (g_file);
-
-    myfm_file = malloc (sizeof (MyFMFile));
-
-    if (myfm_file == NULL) {
-        g_critical ("malloc returned NULL, unable to create myfm_file \n");
-        g_object_unref (g_file);
-        return myfm_file;
-    }
-
-    myfm_file->priv = malloc (sizeof (struct MyFMFilePrivate));
-
-    if (myfm_file->priv == NULL) {
-        g_critical ("malloc returned NULL, unable to create myfm_file \n");
-        g_object_unref (g_file);
-        return myfm_file;
-    }
-
-    myfm_file->priv->g_file = g_file;
-    myfm_file->priv->is_open_dir = FALSE;
-    myfm_file->priv->refcount = 1;
-    myfm_file->priv->cancellable = g_cancellable_new ();
-    myfm_file->priv->filetype = g_file_query_file_type (g_file,
-                                                  G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS, NULL);
-    // myfm_file->priv->icon_size = 20;
-    myfm_file->priv->IO_g_icon = NULL;
-    myfm_file->priv->IO_display_name = NULL;
-
-    return myfm_file;
-}
-
-/* initializes a myfm_file completely without doing any async IO. requires a g_file_info .
+/* initializes a myfm_file completely without doing any async IO. requires a g_file_info.
  * refs the g_file passed into it. */
 MyFMFile *myfm_file_new_with_info (GFile *g_file, GFileInfo *info)
 {
@@ -161,6 +192,7 @@ MyFMFile *myfm_file_new_with_info (GFile *g_file, GFileInfo *info)
     return myfm_file;
 }
 
+/* synchronous constructor. isn't used except for at startup */
 MyFMFile *myfm_file_from_path (const char *path)
 {
     GFile *g_file;

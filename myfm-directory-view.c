@@ -149,6 +149,14 @@ static void myfm_directory_view_on_file_moved_out (MyFMDirectoryView *self, GFil
     puts ("moved out !!!!!!!!!! \n\n");
 }
 
+static void myfm_file_to_store_callback (GObject *g_file, gpointer myfm_file, gpointer store)
+{
+    GtkTreeIter iter;
+
+    gtk_list_store_append (GTK_LIST_STORE (store), &iter);
+    gtk_list_store_set (GTK_LIST_STORE (store), &iter, 0, myfm_file, -1);
+}
+
 static void myfm_directory_view_on_file_moved_in (MyFMDirectoryView *self, GFile *new_g_file)
 {
     GtkListStore *store;
@@ -167,15 +175,18 @@ static void myfm_directory_view_on_file_moved_in (MyFMDirectoryView *self, GFile
                 return;
         } while (gtk_tree_model_iter_next (GTK_TREE_MODEL (store), &iter));
     }
-    new_myfm_file = myfm_file_new_without_io_fields (new_g_file);
-    myfm_file_init_io_fields_async (new_myfm_file);
+    /* TODO: connect to construct finished to show display name in treeview */
+    new_myfm_file = myfm_file_from_g_file_async (new_g_file);
+    myfm_file_connect_callback_on_g_file (new_myfm_file, "construct-finished", myfm_file_to_store_callback, store);
 
-    g_object_ref (new_g_file);
+    // g_object_ref (new_g_file);
 
+    /*
     gtk_list_store_append (store, &iter);
     gtk_list_store_set (store, &iter, 0, new_myfm_file, -1);
+    */
 
-    // TODO: ENABLE DEBUG MESSAGES
+    /* TODO: ENABLE DEBUG MESSAGES */
     g_debug ("moved in !!!!!!!!!! \n\n");
     puts ("moved in !!!!!!!!!! \n\n");
 }
