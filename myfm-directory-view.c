@@ -51,10 +51,6 @@ static void myfm_directory_view_on_dir_change (GFileMonitor *monitor, GFile *fil
    switch (event_type) {
        case G_FILE_MONITOR_EVENT_RENAMED :
            myfm_directory_view_on_file_renamed (self, file, other_file);
-           /* redraw to make sure the directory view instantly updates the display name of the file */
-           /* TODO: connect queue_draw () to after display name has been updated (async)? */
-           /* also TODO: specify area to redraw? */
-           gtk_widget_queue_draw (GTK_WIDGET (self));
            break;
 
        case G_FILE_MONITOR_EVENT_MOVED_OUT :
@@ -74,6 +70,12 @@ static void myfm_directory_view_on_dir_change (GFileMonitor *monitor, GFile *fil
    }
 }
 
+static void myfm_directory_view_queue_draw_callback (MyFMFile *myfm_file, gpointer self)
+{
+    /* TODO: specify area to redraw? */
+    gtk_widget_queue_draw (GTK_WIDGET (self));
+}
+
 static void myfm_directory_view_on_file_renamed (MyFMDirectoryView *self, GFile *orig_g_file, GFile *new_g_file)
 {
     GtkListStore *store;
@@ -89,7 +91,8 @@ static void myfm_directory_view_on_file_renamed (MyFMDirectoryView *self, GFile 
 
             if (myfm_file != NULL && g_file_equal (myfm_file_get_g_file (myfm_file), orig_g_file)) {
 
-                myfm_file_update_async (myfm_file, new_g_file);
+                /* connect callback to redraw self once the display name has been updated */
+                myfm_file_update_async (myfm_file, new_g_file, myfm_directory_view_queue_draw_callback, self);
 
                 /* if the file is opened (and thus the directory view to the right of self is displaying its contents)
                  * we make sure to refresh this directory view as well */
@@ -149,7 +152,7 @@ static void myfm_directory_view_on_file_moved_out (MyFMDirectoryView *self, GFil
     puts ("moved out !!!!!!!!!! \n\n");
 }
 
-static void myfm_file_to_store_callback (GObject *g_file, gpointer myfm_file, gpointer store)
+static void myfm_file_to_store_callback (MyFMFile *myfm_file, gpointer store)
 {
     GtkTreeIter iter;
 
@@ -161,30 +164,23 @@ static void myfm_directory_view_on_file_moved_in (MyFMDirectoryView *self, GFile
 {
     GtkListStore *store;
     MyFMFile *myfm_file;
-    MyFMFile *new_myfm_file;
     GtkTreeIter iter;
 
     store = GTK_LIST_STORE (gtk_tree_view_get_model (GTK_TREE_VIEW (self)));
 
     if (gtk_tree_model_get_iter_first (GTK_TREE_MODEL (store), &iter)) {
+
         do {
             gtk_tree_model_get (GTK_TREE_MODEL (store), &iter, 0, &myfm_file, -1); /* out myfm_file */
             /* if the moved in file already exists in the directory it is being moved to
              * (sometimes it might, for whatever reason) we exit the function */
             if (myfm_file != NULL && g_file_equal (myfm_file_get_g_file (myfm_file), new_g_file))
                 return;
+
         } while (gtk_tree_model_iter_next (GTK_TREE_MODEL (store), &iter));
     }
-    /* TODO: connect to construct finished to show display name in treeview */
-    new_myfm_file = myfm_file_from_g_file_async (new_g_file);
-    myfm_file_connect_callback_on_g_file (new_myfm_file, "construct-finished", myfm_file_to_store_callback, store);
 
-    // g_object_ref (new_g_file);
-
-    /*
-    gtk_list_store_append (store, &iter);
-    gtk_list_store_set (store, &iter, 0, new_myfm_file, -1);
-    */
+    myfm_file_from_g_file_async (new_g_file, myfm_file_to_store_callback, store);
 
     /* TODO: ENABLE DEBUG MESSAGES */
     g_debug ("moved in !!!!!!!!!! \n\n");

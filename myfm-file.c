@@ -19,13 +19,15 @@ struct MyFMFilePrivate {
 
 G_DEFINE_BOXED_TYPE (MyFMFile, myfm_file, myfm_file_ref, myfm_file_unref)
 
-/* since myfm_file itself isn't a g_object, we can't emit and connect to signals on it directly.
- * so we use this convenience function to connect to signals on the self->g_file instead */
-void myfm_file_connect_callback_on_g_file (MyFMFile *self, const char *signal_name,
-                                           void (*callback) (GObject *, gpointer, gpointer), gpointer data)
-{
-    g_signal_connect (self->priv->g_file, signal_name, callback, data);
-}
+/* convenience struct used in myfm_file_IO_fields_callback () and
+ * myfm_file_init_IO_fields_async () to allow setting custom callback functions
+ * to be executed once a myfm_file has been initialized async. */
+struct callback_data {
+    MyFMFileCallback callback;
+    gpointer user_data;
+};
+
+static struct callback_data cb_data = {NULL, NULL};
 
 static void myfm_file_setup_g_icon (MyFMFile *self, GFileInfo *info)
 {
@@ -47,14 +49,17 @@ static void myfm_file_IO_fields_callback (GObject *g_file, GAsyncResult *res, gp
     MyFMFile *self;
 
     self = (MyFMFile *) self_ptr;
-
     info = g_file_query_info_finish (G_FILE (g_file), res, &error);
 
     if (error) {
-        /* TODO: consider unref'ing the myfm_file */
-        g_object_unref (info); /* info is often null in case of error, so this might emit a warning */
         g_critical ("unable to initialize myfm_file: %s \n", error->message);
         self->priv->IO_display_name = NULL;
+
+        /* unref file if the error is caused by the directory no longer existing */
+        if (g_error_matches (error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND))
+            myfm_file_unref (self);
+        else /* only unref info if file still exists. might still emit a warning for being null though */
+            g_object_unref (info);
     }
     else {
         if (self->priv->IO_display_name)
@@ -66,16 +71,28 @@ static void myfm_file_IO_fields_callback (GObject *g_file, GAsyncResult *res, gp
         self->priv->IO_display_name = g_strdup (g_file_info_get_display_name (info));
         myfm_file_setup_g_icon (self, info);
 
-        g_signal_emit_by_name (self->priv->g_file, "construct-finished", self);
+        /* execute custom provided callback */
+        if (cb_data.callback) {
+            cb_data.callback (self, cb_data.user_data);
+
+            cb_data.callback = NULL;
+            cb_data.user_data = NULL;
+        }
     }
 
     /* decrement refcount when we're done */
     myfm_file_unref (self);
+    puts ("^^^^ \n");
 }
 
-static void myfm_file_init_io_fields_async (MyFMFile *self)
+static void myfm_file_init_io_fields_async (MyFMFile *self, MyFMFileCallback callback, gpointer user_data)
 {
-    /* currently the only field that requires IO to be initialized is the display name */
+    if (callback) {
+        cb_data.callback = callback;
+        cb_data.user_data = user_data;
+    }
+
+    /* TODO: only query for the info we need */
     g_file_query_info_async (self->priv->g_file, "*",
                              G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS, G_PRIORITY_DEFAULT,
                              self->priv->cancellable, myfm_file_IO_fields_callback, self);
@@ -117,30 +134,16 @@ static MyFMFile *myfm_file_new_without_io_fields (GFile *g_file)
     myfm_file->priv->IO_g_icon = NULL;
     myfm_file->priv->IO_display_name = NULL;
 
-
-    /* signal to be emitted when myfm_file_from_g_file_async () is finished. since
-     * myfm_file isn't g_object derived, we create and emit the signal on the g_file */
-    g_signal_new ("construct-finished", G_TYPE_FILE,
-                  G_SIGNAL_RUN_FIRST, 0, NULL, NULL,
-                  NULL, G_TYPE_NONE, 1, G_TYPE_POINTER); /* gpointer to myfm_file */
-
     return myfm_file;
 }
 
-/* asynchronous constructor. should be used instead of the sync alternative to avoid
- * blocking the main loop. the myfm_file's display name and icon will most likely not
- * have been initialized upon returning - these are (currently) the only fields that
- * require async IO. querying for them with myfm_file_get_icon () and
- * myfm_file_get_display_name () will then simply return null and " ". to access them
- * as soon as they are ready, connect to the "construct-finished" signal with
- * myfm_file_connect_callback_on_g_file (). */
-MyFMFile *myfm_file_from_g_file_async (GFile *g_file)
+/* asynchronous constructor. should be used instead of the sync alternative to avoid blocking
+ * the main loop. takes a callback that will be executed once the myfm_file has been initialized */
+void myfm_file_from_g_file_async (GFile *g_file, MyFMFileCallback callback, gpointer user_data)
 {
     MyFMFile *myfm_file;
     myfm_file = myfm_file_new_without_io_fields (g_file);
-    myfm_file_init_io_fields_async (myfm_file);
-
-    return myfm_file;
+    myfm_file_init_io_fields_async (myfm_file, callback, user_data);
 }
 
 /* synchronous constructor. isn't used except for at startup */
@@ -211,7 +214,8 @@ GFile *myfm_file_get_g_file (MyFMFile *self)
     return self->priv->g_file;
 }
 
-void myfm_file_update_async (MyFMFile *self, GFile *new_g_file)
+void myfm_file_update_async (MyFMFile *self, GFile *new_g_file,
+                             MyFMFileCallback callback, gpointer user_data)
 {
     g_object_unref (self->priv->g_file);
     g_object_ref (new_g_file);
@@ -228,7 +232,7 @@ void myfm_file_update_async (MyFMFile *self, GFile *new_g_file)
         self->priv->IO_g_icon = NULL;
     }
 
-    myfm_file_init_io_fields_async (self);
+    myfm_file_init_io_fields_async (self, callback, user_data);
 }
 
 gboolean myfm_file_is_open (MyFMFile *self)
