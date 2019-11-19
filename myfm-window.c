@@ -205,6 +205,7 @@ static void myfm_window_constructed (GObject *object)
     gtk_container_add (GTK_CONTAINER (self->pane_scroll), GTK_WIDGET (self->mpaned));
     gtk_container_add (GTK_CONTAINER (self), GTK_WIDGET (self->pane_scroll));
 
+    /* TODO: wrap text */
     g_signal_connect (self->mpaned, "shrink", G_CALLBACK (mpaned_scroll_left_callback), self->pane_scroll);
     g_signal_connect_after (self->mpaned, "expand", G_CALLBACK (mpaned_scroll_to_end_callback), self->pane_scroll);
 

@@ -11,23 +11,13 @@ struct MyFMFilePrivate {
     GFile *g_file;
     gboolean is_open_dir;
     GFileType filetype;
-    const char *IO_display_name;
-    GIcon *IO_g_icon;
     guint refcount;
     GCancellable *cancellable;
+    const char *IO_display_name;
+    GIcon *IO_g_icon;
 };
 
 G_DEFINE_BOXED_TYPE (MyFMFile, myfm_file, myfm_file_ref, myfm_file_unref)
-
-/* convenience struct used in myfm_file_IO_fields_callback () and
- * myfm_file_init_IO_fields_async () to allow setting custom callback functions
- * to be executed once a myfm_file has been initialized async. */
-struct callback_data {
-    MyFMFileCallback callback;
-    gpointer user_data;
-};
-
-static struct callback_data cb_data = {NULL, NULL};
 
 static void myfm_file_setup_g_icon (MyFMFile *self, GFileInfo *info)
 {
@@ -42,20 +32,31 @@ static void myfm_file_setup_g_icon (MyFMFile *self, GFileInfo *info)
     g_object_ref (self->priv->IO_g_icon);
 }
 
-static void myfm_file_IO_fields_callback (GObject *g_file, GAsyncResult *res, gpointer self_ptr)
+/* convenience struct used in myfm_file_IO_fields_callback () and
+ * myfm_file_init_IO_fields_async () to allow setting custom callback functions
+ * to be executed once a myfm_file has been initialized async. */
+struct callback_data {
+    MyFMFile *self;
+    MyFMFileCallback callback;
+    gpointer user_data;
+};
+
+static void myfm_file_IO_fields_callback (GObject *g_file, GAsyncResult *res, gpointer callback_data)
 {
     GFileInfo_autoptr info = NULL;
     GError_autoptr error = NULL;
     MyFMFile *self;
+    struct callback_data *cb_data;
 
-    self = (MyFMFile *) self_ptr;
+    cb_data = (struct callback_data *) callback_data;
+    self = cb_data->self;
     info = g_file_query_info_finish (G_FILE (g_file), res, &error);
 
     if (error) {
         g_critical ("unable to initialize myfm_file: %s \n", error->message);
         self->priv->IO_display_name = NULL;
 
-        /* unref file if the error is caused by the directory no longer existing */
+        /* unref myfm_file if the error is caused by the file no longer existing */
         if (g_error_matches (error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND))
             myfm_file_unref (self);
         else /* only unref info if file still exists. might still emit a warning for being null though */
@@ -72,30 +73,31 @@ static void myfm_file_IO_fields_callback (GObject *g_file, GAsyncResult *res, gp
         myfm_file_setup_g_icon (self, info);
 
         /* execute custom provided callback */
-        if (cb_data.callback) {
-            cb_data.callback (self, cb_data.user_data);
-
-            cb_data.callback = NULL;
-            cb_data.user_data = NULL;
+        if (cb_data->callback) {
+            cb_data->callback (self, cb_data->user_data);
+            cb_data->callback = NULL;
+            cb_data->user_data = NULL;
         }
     }
 
-    /* decrement refcount when we're done */
+    /* decrement refcount of file when we're done */
     myfm_file_unref (self);
-    puts ("^^^^ \n");
+    free (cb_data);
 }
 
 static void myfm_file_init_io_fields_async (MyFMFile *self, MyFMFileCallback callback, gpointer user_data)
 {
-    if (callback) {
-        cb_data.callback = callback;
-        cb_data.user_data = user_data;
-    }
+    struct callback_data *cb_data;
+
+    cb_data = malloc (sizeof (struct callback_data));
+    cb_data->self = self;
+    cb_data->callback = callback;
+    cb_data->user_data = user_data;
 
     /* TODO: only query for the info we need */
     g_file_query_info_async (self->priv->g_file, "*",
                              G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS, G_PRIORITY_DEFAULT,
-                             self->priv->cancellable, myfm_file_IO_fields_callback, self);
+                             self->priv->cancellable, myfm_file_IO_fields_callback, cb_data);
 
     /* keep file alive until callback is invoked to prevent potential use after free */
     myfm_file_ref (self);
