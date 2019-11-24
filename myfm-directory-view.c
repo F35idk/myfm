@@ -34,8 +34,18 @@ static void on_file_select (GtkTreeView *treeview, GtkTreePath *path,
     gtk_tree_model_get_iter (tree_model, &iter, path);
     gtk_tree_model_get (tree_model, &iter, 0, &myfm_file, -1);
 
-    if (myfm_file)
-        myfm_window_open_file_async (parent_window, (MyFMFile*) myfm_file, dirview_index);
+    if (myfm_file) {
+        /* myfm_window_open_file_async (parent_window, (MyFMFile*) myfm_file, dirview_index); */
+        MyFMApplication *app;
+        MyFMWindow *win;
+
+        win = MYFM_WINDOW (gtk_widget_get_toplevel (treeview));
+        app = MYFM_APPLICATION (gtk_window_get_application (GTK_WINDOW (win)));
+
+        struct MyFMOpenFileArgs open_args = {myfm_file, dirview_index};
+        myfm_application_set_action_args (app, &open_args, MYFM_OPEN_FILE_ACTION);
+        g_action_group_activate_action (G_ACTION_GROUP (win), "open_file", NULL);
+    }
 }
 
 /* functions only used in on_dir_change. should maybe be inlined to avoid confusion */
