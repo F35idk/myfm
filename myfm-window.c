@@ -7,7 +7,6 @@
 
 #include "myfm-application.h"
 #include "myfm-window.h"
-#include "myfm-directory-view-utils.h"
 #include "myfm-file.h"
 #include "myfm-directory-view.h"
 #include "myfm-multi-paned.h"
@@ -110,25 +109,13 @@ static void myfm_window_open_other_async (MyFMWindow *self, MyFMFile *file)
     /* TODO: fill in this */
 }
 
-/* main function for opening files. gets connected to the "activate" signal of the "open_file" g_action.
- * to invoke, set the action arguments with 'myfm_application_set_action_args' and call
- *'g_action_group_activate_action (win, "open_file", NULL)' where win = a myfm_window.  */
-static void myfm_window_open_file_async (GSimpleAction *action, GVariant *param, gpointer window)
+/* main function for opening files */
+void myfm_window_open_file_async (MyFMWindow *self, MyFMFile *file, gint dirview_index)
 {
-    MyFMApplication *app;
-    struct MyFMOpenFileArgs *open_file_args;
-
-    app = MYFM_APPLICATION (gtk_window_get_application (GTK_WINDOW (window)));
-    open_file_args = myfm_application_get_action_args (app, MYFM_OPEN_FILE_ACTION);
-
-    if (myfm_file_get_filetype (open_file_args->target_file) != G_FILE_TYPE_DIRECTORY)
-        myfm_window_open_other_async (window, open_file_args->target_file);
+    if (myfm_file_get_filetype (file) != G_FILE_TYPE_DIRECTORY)
+        myfm_window_open_other_async (self, file);
     else
-        myfm_window_open_dir_async (window, open_file_args->target_file,
-                                    open_file_args->dirview_index);
-
-    /* clear args struct afterwards */
-    open_file_args->target_file = NULL;
+        myfm_window_open_dir_async (self, file, dirview_index);
 }
 
 /* function for closing any open directory view (and thus all directory views to the right of it in
@@ -168,18 +155,6 @@ gint myfm_window_get_directory_view_index (MyFMWindow *self, MyFMDirectoryView *
     return g_list_index (self->directory_views, dirview);
 }
 
-/* set up g_actions */
-static void myfm_window_setup_actions (MyFMWindow *self)
-{
-    GSimpleAction *open_file_action;
-
-    open_file_action = g_simple_action_new ("open_file", NULL);
-    g_signal_connect (open_file_action, "activate", G_CALLBACK (myfm_window_open_file_async), self);
-    /* ... */
-
-    g_action_map_add_action (G_ACTION_MAP (self), G_ACTION (open_file_action));
-}
-
 static void myfm_window_destroy (GtkWidget *widget)
 {
     /* TODO: what to put here? finalize is always run anyway so */
@@ -217,7 +192,6 @@ static void myfm_window_constructed (GObject *object)
 
     self = MYFM_WINDOW (object);
 
-    myfm_window_setup_actions (self);
     gtk_window_set_default_size (GTK_WINDOW (self), self->default_width, self->default_height);
 
     /* hide scrollbar */

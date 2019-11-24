@@ -15,7 +15,7 @@
 G_DECLARE_FINAL_TYPE     (MyFMWindow, myfm_window, MYFM, WINDOW, GtkApplicationWindow)
 
 MyFMWindow        *myfm_window_new                     (MyFMApplication *app);
-/* void              myfm_window_open_file_async          (MyFMWindow *win, MyFMFile *file, gint dirview_index); */
+void              myfm_window_open_file_async          (MyFMWindow *win, MyFMFile *file, gint dirview_index);
 gint              myfm_window_get_directory_view_index (MyFMWindow *self, MyFMDirectoryView *dirview);
 MyFMDirectoryView *myfm_window_get_next_directory_view (MyFMWindow *self, MyFMDirectoryView *dirview);
 void              myfm_window_close_directory_view     (MyFMWindow *self, MyFMDirectoryView *dirview);

@@ -5,6 +5,7 @@
 #include <gtk/gtk.h>
 
 #include "myfm-directory-view.h"
+#include "myfm-context-menu.h"
 #include "myfm-file.h"
 #include "myfm-window.h"
 
@@ -18,34 +19,58 @@ struct _MyFMDirectoryView {
 
 G_DEFINE_TYPE (MyFMDirectoryView, myfm_directory_view, GTK_TYPE_TREE_VIEW)
 
-static void on_file_select (GtkTreeView *treeview, GtkTreePath *path,
-                            GtkTreeViewColumn *column, gpointer user_data)
+static void myfm_directory_view_on_right_click (GtkWidget *widget, GdkEvent *event, gpointer user_data)
 {
-    GtkTreeModel *tree_model;
+    GdkWindow *bin_window;
+    GdkEventButton *event_button;
+    GtkTreeView *treeview;
+
+    treeview = GTK_TREE_VIEW (widget);
+    bin_window = gtk_tree_view_get_bin_window (treeview);
+    event_button = (GdkEventButton *) event;
+
+    if (event_button->button == 3 && event_button->window == bin_window) { /* rmb */
+        GtkTreePath_autoptr path = NULL;
+        GtkTreeViewColumn *col = NULL;
+        gint cell_x;
+        gint cell_y;
+        gboolean result;
+
+        result = gtk_tree_view_get_path_at_pos (treeview, event_button->x, event_button->y,
+                                                &path, &col, &cell_x, &cell_y);
+        if (result) {
+            if (path) { /* a file was right clicked */
+                MyFMContextMenu *menu;
+                MyFMFile *selected;
+
+                selected = myfm_directory_view_get_file (MYFM_DIRECTORY_VIEW (treeview), path);
+                menu = myfm_context_menu_new_for_file (MYFM_DIRECTORY_VIEW (treeview), selected);
+
+                gtk_menu_popup_at_pointer (GTK_MENU (menu), event);
+            }
+            else {
+                /* popup some different context menu */
+            }
+        }
+        /* NOTE: why does forgetting to free path here cause a leak, despite it being an auto_ptr? freeing
+         * twice isn't harmful here though (same scope, it checks for NULL), so i guess we'll just do that for now */
+        gtk_tree_path_free (path);
+    }
+}
+
+static void myfm_directory_view_on_file_select (GtkTreeView *treeview, GtkTreePath *path,
+                                                GtkTreeViewColumn *column, gpointer user_data)
+{
     MyFMWindow *parent_window;
     gint dirview_index;
-    GtkTreeIter iter;
-    gpointer myfm_file;
+    MyFMFile *myfm_file;
 
     parent_window = MYFM_WINDOW (gtk_widget_get_toplevel (GTK_WIDGET (treeview)));
     dirview_index = myfm_window_get_directory_view_index (parent_window, MYFM_DIRECTORY_VIEW (treeview));
-    tree_model = gtk_tree_view_get_model (treeview);
+    myfm_file = myfm_directory_view_get_file (MYFM_DIRECTORY_VIEW (treeview), path);
 
-    gtk_tree_model_get_iter (tree_model, &iter, path);
-    gtk_tree_model_get (tree_model, &iter, 0, &myfm_file, -1);
-
-    if (myfm_file) {
-        /* myfm_window_open_file_async (parent_window, (MyFMFile*) myfm_file, dirview_index); */
-        MyFMApplication *app;
-        MyFMWindow *win;
-
-        win = MYFM_WINDOW (gtk_widget_get_toplevel (treeview));
-        app = MYFM_APPLICATION (gtk_window_get_application (GTK_WINDOW (win)));
-
-        struct MyFMOpenFileArgs open_args = {myfm_file, dirview_index};
-        myfm_application_set_action_args (app, &open_args, MYFM_OPEN_FILE_ACTION);
-        g_action_group_activate_action (G_ACTION_GROUP (win), "open_file", NULL);
-    }
+    if (myfm_file)
+        myfm_window_open_file_async (parent_window, (MyFMFile*) myfm_file, dirview_index);
 }
 
 /* functions only used in on_dir_change. should maybe be inlined to avoid confusion */
@@ -108,7 +133,7 @@ static void myfm_directory_view_on_file_renamed (MyFMDirectoryView *self, GFile 
                  * we make sure to refresh this directory view as well */
                 if (myfm_file_is_open (myfm_file)) {
 
-                    MyFMWindow *parent_win = MYFM_WINDOW(gtk_widget_get_toplevel (GTK_WIDGET (self)));
+                    MyFMWindow *parent_win = MYFM_WINDOW (gtk_widget_get_toplevel (GTK_WIDGET (self)));
                     MyFMDirectoryView *next = myfm_window_get_next_directory_view (parent_win, self);
 
                     myfm_directory_view_refresh_files_async (next);
@@ -244,6 +269,25 @@ gboolean myfm_directory_view_get_show_hidden (MyFMDirectoryView *self)
     return self->show_hidden;
 }
 
+MyFMFile *myfm_directory_view_get_file (MyFMDirectoryView *self, GtkTreePath *path)
+{
+    GtkTreeModel *model;
+    GtkTreeIter iter;
+    MyFMFile *myfm_file;
+
+    model = gtk_tree_view_get_model (GTK_TREE_VIEW (self));
+
+    gtk_tree_model_get_iter (model, &iter, path);
+    gtk_tree_model_get (model, &iter, 0, &myfm_file, -1);
+
+    return myfm_file;
+}
+
+MyFMFile *myfm_directory_view_get_directory (MyFMDirectoryView *self)
+{
+    return self->directory;
+}
+
 /* foreach function to be called on each file in the directory view's
  * list store. unrefs and sets to null a single file in the store */
 static gboolean clear_file_in_store (GtkTreeModel *model, GtkTreePath *path, GtkTreeIter *iter, gpointer data)
@@ -321,11 +365,6 @@ void myfm_directory_view_refresh_files_async (MyFMDirectoryView *self)
     gtk_tree_model_foreach (store, clear_file_in_store, NULL);
     gtk_list_store_clear (GTK_LIST_STORE (store));
     myfm_directory_view_fill_store_async (self);
-}
-
-MyFMFile *myfm_directory_view_get_directory (MyFMDirectoryView *self)
-{
-    return self->directory;
 }
 
 /* ------------------------------------------------------------------------------------------ *
@@ -500,7 +539,8 @@ static void myfm_directory_view_constructed (GObject *object)
     gtk_tree_view_set_rubber_banding (GTK_TREE_VIEW (self), TRUE);
     gtk_tree_view_set_activate_on_single_click (GTK_TREE_VIEW (self), TRUE); /* TODO: allow configurable */
 
-    g_signal_connect (self, "row-activated", G_CALLBACK (on_file_select), NULL);
+    g_signal_connect (self, "row-activated", G_CALLBACK (myfm_directory_view_on_file_select), NULL);
+    g_signal_connect (GTK_WIDGET (self), "button-press-event", G_CALLBACK (myfm_directory_view_on_right_click), NULL);
 }
 
 static void myfm_directory_view_init (MyFMDirectoryView *self)
