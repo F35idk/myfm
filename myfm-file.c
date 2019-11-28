@@ -14,6 +14,7 @@ struct MyFMFilePrivate {
     guint refcount;
     GCancellable *cancellable;
     const char *IO_display_name;
+    const char *IO_content_type;
     GIcon *IO_g_icon;
 };
 
@@ -30,6 +31,29 @@ static void myfm_file_setup_g_icon (MyFMFile *self, GFileInfo *info)
     }
 
     g_object_ref (self->priv->IO_g_icon);
+}
+
+static void myfm_file_clear_io_fields (MyFMFile *self)
+{
+    if (self->priv->IO_display_name) {
+        g_free (self->priv->IO_display_name);
+        self->priv->IO_display_name = NULL;
+    }
+    if (self->priv->IO_content_type) {
+        g_free (self->priv->IO_content_type);
+        self->priv->IO_content_type = NULL;
+    }
+    if (self->priv->IO_g_icon) {
+        g_object_unref (self->priv->IO_g_icon);
+        self->priv->IO_g_icon = NULL;
+    }
+}
+
+static void myfm_file_init_io_fields_with_info (MyFMFile *self, GFileInfo *info)
+{
+    self->priv->IO_display_name = g_strdup (g_file_info_get_display_name (info));
+    self->priv->IO_content_type = g_strdup (g_file_info_get_content_type (info));
+    myfm_file_setup_g_icon (self, info);
 }
 
 /* convenience struct used in myfm_file_IO_fields_callback () and
@@ -63,14 +87,8 @@ static void myfm_file_IO_fields_callback (GObject *g_file, GAsyncResult *res, gp
             g_object_unref (info);
     }
     else {
-        if (self->priv->IO_display_name)
-            g_free (self->priv->IO_display_name);
-
-        if (self->priv->IO_g_icon)
-            g_object_unref (self->priv->IO_g_icon);
-
-        self->priv->IO_display_name = g_strdup (g_file_info_get_display_name (info));
-        myfm_file_setup_g_icon (self, info);
+        myfm_file_clear_io_fields (self);
+        myfm_file_init_io_fields_with_info (self, info);
 
         /* execute custom provided callback */
         if (cb_data->callback) {
@@ -135,6 +153,7 @@ static MyFMFile *myfm_file_new_without_io_fields (GFile *g_file)
                                                         G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS, NULL);
     myfm_file->priv->IO_g_icon = NULL;
     myfm_file->priv->IO_display_name = NULL;
+    myfm_file->priv->IO_content_type = NULL;
 
     return myfm_file;
 }
@@ -165,13 +184,10 @@ MyFMFile *myfm_file_from_g_file (GFile *g_file)
     info = g_file_query_info (g_file, "*",
                               G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS, NULL, &error);
 
-    if (error) {
+    if (error)
         g_critical ("unable to get info on file: %s \n", error->message);
-    }
-    else {
-        myfm_file->priv->IO_display_name = g_strdup (g_file_info_get_display_name (info));
-        myfm_file_setup_g_icon (myfm_file, info);
-    }
+    else
+        myfm_file_init_io_fields_with_info (myfm_file, info);
 
     /* valgrind tells me unref'ing is needed, despite
     * info being an auto_ptr */
@@ -191,8 +207,7 @@ MyFMFile *myfm_file_new_with_info (GFile *g_file, GFileInfo *info)
     if (myfm_file == NULL)
         return myfm_file;
 
-    myfm_file->priv->IO_display_name = g_strdup (g_file_info_get_display_name (info));
-    myfm_file_setup_g_icon (myfm_file, info);
+    myfm_file_init_io_fields_with_info (myfm_file, info);
 
     return myfm_file;
 }
@@ -224,16 +239,8 @@ void myfm_file_update_async (MyFMFile *self, GFile *new_g_file,
     self->priv->g_file = new_g_file;
     self->priv->filetype = g_file_query_file_type (new_g_file,
                                                    G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS, NULL);
-
-    if (self->priv->IO_display_name) {
-        g_free (self->priv->IO_display_name);
-        self->priv->IO_display_name = NULL;
-    }
-    if (self->priv->IO_g_icon) {
-        g_object_unref (self->priv->IO_g_icon);
-        self->priv->IO_g_icon = NULL;
-    }
-
+  
+    myfm_file_clear_io_fields (self);
     myfm_file_init_io_fields_async (self, callback, user_data);
 }
 
@@ -263,6 +270,14 @@ const char *myfm_file_get_display_name (MyFMFile *self)
         return " ";
 }
 
+const char *myfm_file_get_content_type (MyFMFile *self)
+{
+    if (self->priv->IO_content_type)
+        return self->priv->IO_content_type;
+    else
+        return " ";
+}
+
 GIcon *myfm_file_get_icon (MyFMFile *self)
 {
     return self->priv->IO_g_icon;
@@ -278,15 +293,7 @@ void myfm_file_free (MyFMFile *self)
         self->priv->g_file = NULL;
     }
 
-    if (self->priv->IO_display_name) {
-        g_free (self->priv->IO_display_name);
-        self->priv->IO_display_name = NULL;
-    }
-
-    if (self->priv->IO_g_icon) {
-        g_object_unref (self->priv->IO_g_icon);
-        self->priv->IO_g_icon = NULL;
-    }
+    myfm_file_clear_io_fields (self);
 
     /* cancel all IO on file */
     if (self->priv->cancellable) {

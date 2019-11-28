@@ -103,17 +103,22 @@ static void myfm_window_open_dir_async (MyFMWindow *self, MyFMFile *dir, gint di
 }
 
 /* function for opening any file that is not a directory */
-/* FIXME: not async */
-static void myfm_window_open_other_async (MyFMWindow *self, MyFMFile *file)
+static void myfm_window_open_other (MyFMWindow *self, MyFMFile *file)
 {
-    /* TODO: fill in this */
+    GAppInfo *app_info;
+    GList *g_files;
+
+    app_info = g_app_info_get_default_for_type (myfm_file_get_content_type (file), FALSE);
+    g_files = g_list_append (NULL, myfm_file_get_g_file (file));
+
+    g_app_info_launch (app_info, g_files, NULL, NULL);
 }
 
 /* main function for opening files */
 void myfm_window_open_file_async (MyFMWindow *self, MyFMFile *file, gint dirview_index)
 {
     if (myfm_file_get_filetype (file) != G_FILE_TYPE_DIRECTORY)
-        myfm_window_open_other_async (self, file);
+        myfm_window_open_other (self, file);
     else
         myfm_window_open_dir_async (self, file, dirview_index);
 }

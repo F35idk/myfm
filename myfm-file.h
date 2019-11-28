@@ -31,6 +31,7 @@ GIcon     *myfm_file_get_icon                   (MyFMFile *self);
 gboolean   myfm_file_is_open                    (MyFMFile *self);
 void       myfm_file_set_is_open                (MyFMFile *self, gboolean is_open);
 const char *myfm_file_get_display_name          (MyFMFile *self);
+const char *myfm_file_get_content_type          (MyFMFile *self);
 void       myfm_file_from_g_file_async          (GFile *g_file, MyFMFileCallback callback, gpointer user_data);
 void       myfm_file_update_async               (MyFMFile *self, GFile *new_g_file, MyFMFileCallback callback, gpointer user_data);
 void       myfm_file_free                       (MyFMFile *self);
