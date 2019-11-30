@@ -370,7 +370,7 @@ void myfm_directory_view_refresh_files_async (MyFMDirectoryView *self)
 /* ------------------------------------------------------------------------------------------ *
  *  CALLBACKS START
  * ------------------------------------------------------------------------------------------ */
-static gint n_files = 32; // number of files to request per g_file_enumerator iteration
+static gint n_files = 32; /* number of files to request per g_file_enumerator iteration */
 
 /* https://stackoverflow.com/questions/35036909/c-glib-gio-how-to-list-files-asynchronously
  * function calls itself until all files have been listed */

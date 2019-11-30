@@ -105,13 +105,18 @@ static void myfm_window_open_dir_async (MyFMWindow *self, MyFMFile *dir, gint di
 /* function for opening any file that is not a directory */
 static void myfm_window_open_other (MyFMWindow *self, MyFMFile *file)
 {
-    GAppInfo *app_info;
+    /* TODO: mem cleanup */
+    GList *app_infos;
     GList *g_files;
 
-    app_info = g_app_info_get_default_for_type (myfm_file_get_content_type (file), FALSE);
+    app_infos = g_app_info_get_recommended_for_type (myfm_file_get_content_type (file));
     g_files = g_list_append (NULL, myfm_file_get_g_file (file));
 
-    g_app_info_launch (app_info, g_files, NULL, NULL);
+    g_app_info_launch (g_list_first (app_infos)->data, g_files, NULL, NULL);
+
+    /* TODO: valgrind check */
+    g_list_free (g_files);
+    g_list_free_full (app_infos, g_object_unref);
 }
 
 /* main function for opening files */
@@ -132,12 +137,12 @@ void myfm_window_close_directory_view (MyFMWindow *self, MyFMDirectoryView *dirv
 
     index = myfm_window_get_directory_view_index (self, dirview); /* get index before view is removed */
     element = g_list_find (self->directory_views, dirview);
-    while (element != NULL) {
+    while (element) {
         GList *next = element->next; /* store pointer to next before it changes */
         MyFMDirectoryView *current_dirview = MYFM_DIRECTORY_VIEW (element->data);
-        MyFMFile *dir = myfm_directory_view_get_directory (current_dirview);
-        /* set open_dir to false to prevent recursive closes on already removed directories */
-        myfm_file_set_is_open (dir, FALSE);
+        MyFMFile *current_dir = myfm_directory_view_get_directory (current_dirview);
+        /* set is_open to false to prevent recursive closes on already removed directories */
+        myfm_file_set_is_open (current_dir, FALSE);
         self->directory_views = g_list_remove (self->directory_views, element->data);
         element = next;
     }
