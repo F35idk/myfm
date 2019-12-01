@@ -5,6 +5,8 @@
 #ifndef MYFM_MULTI_PANED_H
 #define MYFM_MULTI_PANED_H
 
+#include <gtk/gtk.h>
+
 /* extension of gtk_paned that nests multiple gtk_paned widgets inside one another to allow
  * for free resizing of an unlimited amt. of widgets. emits the signals "expand" and "shrink" before
  * resizing which parent widgets can connect to to change their adjustment */

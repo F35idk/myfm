@@ -27,14 +27,13 @@ typedef void (*MyFMFileCallback)(MyFMFile *, gpointer);
 GFile      *myfm_file_get_g_file                (MyFMFile *self);
 GFileType  myfm_file_get_filetype               (MyFMFile *self);
 GType      myfm_file_get_type                   (void);
-GIcon     *myfm_file_get_icon                   (MyFMFile *self);
+GIcon      *myfm_file_get_icon                  (MyFMFile *self);
 gboolean   myfm_file_is_open                    (MyFMFile *self);
 void       myfm_file_set_is_open                (MyFMFile *self, gboolean is_open);
 const char *myfm_file_get_display_name          (MyFMFile *self);
 const char *myfm_file_get_content_type          (MyFMFile *self);
 void       myfm_file_from_g_file_async          (GFile *g_file, MyFMFileCallback callback, gpointer user_data);
 void       myfm_file_update_async               (MyFMFile *self, GFile *new_g_file, MyFMFileCallback callback, gpointer user_data);
-void       myfm_file_free                       (MyFMFile *self);
 void       myfm_file_unref                      (MyFMFile *self);
 MyFMFile   *myfm_file_ref                       (MyFMFile *self); /* mustn't be void to fit glib boxed api */
 MyFMFile   *myfm_file_new_with_info             (GFile *g_file, GFileInfo *info);
