@@ -16,6 +16,20 @@ struct _MyFMContextMenu {
 
 G_DEFINE_TYPE (MyFMContextMenu, myfm_context_menu, GTK_TYPE_MENU)
 
+GtkWidget *new_menu_item (const gchar *label, guint keyval, GdkModifierType accel_mods)
+{
+    GtkWidget *menu_item;
+    GtkWidget *child;
+
+    menu_item = gtk_menu_item_new_with_label (label);
+    child = gtk_bin_get_child (GTK_BIN (menu_item));
+
+    if (keyval || accel_mods)
+        gtk_accel_label_set_accel (GTK_ACCEL_LABEL (child), keyval, accel_mods);
+
+    return menu_item;
+}
+
 static void myfm_context_menu_on_item_activate (GtkMenuItem *item, gpointer myfm_context_menu)
 {
     MyFMWindow *window;
@@ -59,40 +73,100 @@ static void myfm_context_menu_on_item_hover (GtkMenuItem *item, gpointer myfm_co
     */
 }
 
-static void myfm_context_menu_on_open_with (GtkMenuItem *item, gpointer myfm_context_menu)
+static void myfm_context_menu_on_open_with_app (GtkMenuItem *item, gpointer myfm_context_menu)
 {
     MyFMContextMenu *self;
     GAppInfo *app_info;
     GList *g_file_list;
+    GError_autoptr error = NULL;
 
     self = MYFM_CONTEXT_MENU (myfm_context_menu);
     app_info = g_object_get_data (G_OBJECT (item), "app_info");
     g_file_list = g_list_append (NULL, myfm_file_get_g_file (self->file));
 
-    /* FIXME: don't pass NULL as error */
     g_app_info_set_as_last_used_for_type (app_info, myfm_file_get_content_type (self->file), NULL);
-    g_app_info_launch (app_info, g_file_list, NULL, NULL);
+    g_app_info_launch (app_info, g_file_list, NULL, &error);
+    /* we set the data to NULL, which unrefs and clears it. this isn't really needed, as the
+     * data should be cleared when the widget is destroyed anyway, but it doesn't hurt. prevents
+     * a "definitely lost" in valgrind (false flag, most likey) */
+    g_object_set_data (G_OBJECT (item), "app_info", NULL);
+
+    /* TODO: error popup dialog */
+    if (error)
+        g_critical ("error in myfm_context_menu when opening file(s) with '%s': %s",
+                    g_app_info_get_display_name (app_info), error->message);
 
     g_list_free (g_file_list);
 }
 
-GtkWidget *new_menu_item (const gchar *label, guint keyval, GdkModifierType accel_mods)
+/* handler for gtk_app_chooser_widget's "application-activated" signal. opens file using 'app_info'. */
+static void on_app_chooser_item_activate (GtkAppChooserWidget *chooser_widget, GAppInfo *app_info,
+                                          gpointer chooser_dialog)
 {
-    GtkWidget *menu_item;
-    GtkWidget *child;
+    GFile *g_file;
+    GList *g_file_list;
+    GError_autoptr error = NULL;
 
-    menu_item = gtk_menu_item_new_with_label (label);
-    child = gtk_bin_get_child (GTK_BIN (menu_item));
+    g_object_get (G_OBJECT (chooser_dialog), "gfile", &g_file, NULL);
+    g_file_list = g_list_append (NULL, g_file);
 
-    if (keyval || accel_mods)
-        gtk_accel_label_set_accel (GTK_ACCEL_LABEL (child), keyval, accel_mods);
+    g_app_info_launch (app_info, g_file_list, NULL, &error);
+    /* this unref shouldn't be needed, but doesn't hurt. clears a
+     * "definitely lost" in valgrind (false flag, most likey) */
+    g_object_unref (app_info);
+    app_info = NULL;
 
-    return menu_item;
+    /* TODO: error popup dialog */
+    if (error)
+        g_critical ("error in myfm_context_menu when opening file(s) with '%s': %s",
+                    g_app_info_get_display_name (app_info), error->message);
+
+    gtk_window_close (GTK_WINDOW (chooser_dialog));
+}
+
+/* handler for gtk_app_chooser_dialog's "response" signal (inherited from gtk_dialog) */
+static void on_app_chooser_response (GtkDialog *chooser_dialog, gint response_id, gpointer data)
+{
+    if (response_id == GTK_RESPONSE_CANCEL) {
+        gtk_window_close (GTK_WINDOW (chooser_dialog));
+    }
+    /* when 'select' button is pressed or an app is double clicked */
+    else if (response_id == GTK_RESPONSE_OK) {
+        GtkWidget *chooser_widget;
+        GAppInfo *app_info;
+
+        app_info = gtk_app_chooser_get_app_info (GTK_APP_CHOOSER (chooser_dialog));
+        chooser_widget = gtk_app_chooser_dialog_get_widget (GTK_APP_CHOOSER_DIALOG (chooser_dialog));
+
+        on_app_chooser_item_activate (GTK_APP_CHOOSER_WIDGET (chooser_widget),
+                                      app_info, chooser_dialog);
+    }
+}
+
+static void myfm_context_menu_on_open_with_other (GtkMenuItem *item, gpointer myfm_context_menu)
+{
+    GtkWidget *chooser_dialog;
+    GtkWidget *chooser_widget;
+    MyFMContextMenu *self;
+    GtkWindow *parent;
+
+    self = MYFM_CONTEXT_MENU (myfm_context_menu);
+    parent = GTK_WINDOW (gtk_widget_get_toplevel (GTK_WIDGET (self->dirview)));
+
+    chooser_dialog = gtk_app_chooser_dialog_new (parent, GTK_DIALOG_MODAL,
+                                          myfm_file_get_g_file (self->file));
+    chooser_widget = gtk_app_chooser_dialog_get_widget (GTK_APP_CHOOSER_DIALOG (chooser_dialog));
+
+    g_signal_connect (GTK_DIALOG (chooser_dialog), "response",
+                      G_CALLBACK (on_app_chooser_response), self);
+
+    gtk_widget_show_all (chooser_dialog);
 }
 
 GtkWidget *myfm_context_menu_new_submenu_for_open_with (MyFMContextMenu *self)
 {
     GtkWidget *submenu;
+    GtkWidget *other_apps;
     GList *recommended_apps;
     GList *current;
 
@@ -110,12 +184,17 @@ GtkWidget *myfm_context_menu_new_submenu_for_open_with (MyFMContextMenu *self)
         gtk_widget_show (item);
         g_object_set_data_full (G_OBJECT (item), "app_info", app_info, g_object_unref);
         g_signal_connect (GTK_MENU_ITEM (item), "activate",
-                          G_CALLBACK (myfm_context_menu_on_open_with), self);
+                          G_CALLBACK (myfm_context_menu_on_open_with_app), self);
 
         current = current->next;
     }
-
     g_list_free (recommended_apps);
+
+    other_apps = new_menu_item ("Other Applications..", 0, 0);
+    gtk_menu_shell_append (GTK_MENU_SHELL (submenu), other_apps);
+    gtk_widget_show (other_apps);
+    g_signal_connect (GTK_MENU_ITEM (other_apps), "activate",
+                      G_CALLBACK (myfm_context_menu_on_open_with_other), self);
 
     return submenu;
 }
@@ -135,6 +214,7 @@ static void myfm_context_menu_append_and_setup (MyFMContextMenu *self, GtkWidget
 
 static void myfm_context_menu_fill_for_directory_view (MyFMContextMenu *self)
 {
+    /* TODO: implement */
 }
 
 static void myfm_context_menu_fill_for_file (MyFMContextMenu *self)

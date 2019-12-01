@@ -59,11 +59,6 @@ static void mpaned_scroll_to_end_callback (MyFMMultiPaned *mpaned, gpointer pane
     g_signal_emit_by_name (GTK_SCROLLED_WINDOW (pane_scroll), "scroll-child", GTK_SCROLL_END, TRUE, &return_val);
 }
 
-static void show_dirview_callback (gpointer dirview)
-{
-    gtk_widget_show (GTK_WIDGET (dirview));
-}
-
 /* function for opening directories */
 static void myfm_window_open_dir_async (MyFMWindow *self, MyFMFile *dir, gint dirview_index)
 {
@@ -78,7 +73,7 @@ static void myfm_window_open_dir_async (MyFMWindow *self, MyFMFile *dir, gint di
     myfm_directory_view_fill_store_async (dirview);
 
     /* "promise" to show our directory view once it has been filled */
-    g_signal_connect (dirview, "filled", G_CALLBACK (show_dirview_callback), NULL);
+    g_signal_connect (dirview, "filled", G_CALLBACK (gtk_widget_show), NULL);
 
     /* remove unused directory views from our ordered directory view list (truncate it) */
     GList *element = g_list_nth (self->directory_views, dirview_index+1);
@@ -108,13 +103,19 @@ static void myfm_window_open_other (MyFMWindow *self, MyFMFile *file)
     /* TODO: mem cleanup */
     GList *app_infos;
     GList *g_files;
+    GError_autoptr error = NULL;
 
     app_infos = g_app_info_get_recommended_for_type (myfm_file_get_content_type (file));
     g_files = g_list_append (NULL, myfm_file_get_g_file (file));
 
-    g_app_info_launch (g_list_first (app_infos)->data, g_files, NULL, NULL);
+    g_app_info_launch (g_list_first (app_infos)->data, g_files, NULL, &error);
 
-    /* TODO: valgrind check */
+    /* TODO: error popup dialog */
+    if (error)
+        g_critical ("error in myfm_window when opening file(s) with '%s': %s",
+                    g_app_info_get_display_name (g_list_first (app_infos)->data),
+                    error->message);
+
     g_list_free (g_files);
     g_list_free_full (app_infos, g_object_unref);
 }
