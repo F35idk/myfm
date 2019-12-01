@@ -5,7 +5,9 @@ build/
 test_dir/
 trash/
 CMakeLists.txt
+CMakeLists.txt.user
 compile_commands.json
 gtk.supp
+myfm
 vgdump*
 
