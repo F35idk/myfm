@@ -10,6 +10,7 @@
 #include "myfm-file.h"
 #include "myfm-directory-view.h"
 #include "myfm-multi-paned.h"
+#include "myfm-utils.h"
 
 struct _MyFMWindow {
     GtkApplicationWindow parent_instance;
@@ -100,7 +101,6 @@ static void myfm_window_open_dir_async (MyFMWindow *self, MyFMFile *dir, gint di
 /* function for opening any file that is not a directory */
 static void myfm_window_open_other (MyFMWindow *self, MyFMFile *file)
 {
-    /* TODO: mem cleanup */
     GList *app_infos;
     GList *g_files;
     GError_autoptr error = NULL;
@@ -110,11 +110,15 @@ static void myfm_window_open_other (MyFMWindow *self, MyFMFile *file)
 
     g_app_info_launch (g_list_first (app_infos)->data, g_files, NULL, &error);
 
-    /* TODO: error popup dialog */
-    if (error)
+    if (error) {
+        myfm_utils_popup_error_dialog (self, "error in myfm_window when opening file(s) \
+                                       with '%s': %s", g_app_info_get_display_name (
+                                           g_list_first (app_infos)->data),
+                                       error->message);
         g_critical ("error in myfm_window when opening file(s) with '%s': %s",
                     g_app_info_get_display_name (g_list_first (app_infos)->data),
                     error->message);
+    }
 
     g_list_free (g_files);
     g_list_free_full (app_infos, g_object_unref);
