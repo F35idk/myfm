@@ -31,7 +31,7 @@ static void myfm_directory_view_on_right_click (GtkWidget *widget, GdkEvent *eve
     event_button = (GdkEventButton *) event;
 
     if (event_button->button == 3 && event_button->window == bin_window) { /* rmb */
-        GtkTreePath_autoptr path = NULL;
+        GtkTreePath *path = NULL;
         GtkTreeViewColumn *col = NULL;
         gint cell_x;
         gint cell_y;
@@ -44,18 +44,16 @@ static void myfm_directory_view_on_right_click (GtkWidget *widget, GdkEvent *eve
                 MyFMContextMenu *menu;
                 MyFMFile *selected;
 
-                selected = myfm_directory_view_get_file (MYFM_DIRECTORY_VIEW (treeview), path);
-                menu = myfm_context_menu_new_for_file (MYFM_DIRECTORY_VIEW (treeview), selected);
-
+                selected = myfm_directory_view_get_file_from_path (MYFM_DIRECTORY_VIEW (treeview),
+                                                                       path);
+                menu = myfm_context_menu_new_for_file (MYFM_DIRECTORY_VIEW (treeview), selected, path);
                 gtk_menu_popup_at_pointer (GTK_MENU (menu), event);
             }
             else {
+                gtk_tree_path_free (path);
                 /* popup some different context menu */
             }
         }
-        /* NOTE: why does forgetting to free path here cause a leak, despite it being an auto_ptr? freeing
-         * twice isn't harmful here though (same scope, it checks for NULL), so i guess we'll just do that for now */
-        gtk_tree_path_free (path);
     }
 }
 
@@ -68,7 +66,7 @@ static void myfm_directory_view_on_file_select (GtkTreeView *treeview, GtkTreePa
 
     parent_window = MYFM_WINDOW (gtk_widget_get_toplevel (GTK_WIDGET (treeview)));
     dirview_index = myfm_window_get_directory_view_index (parent_window, MYFM_DIRECTORY_VIEW (treeview));
-    myfm_file = myfm_directory_view_get_file (MYFM_DIRECTORY_VIEW (treeview), path);
+    myfm_file = myfm_directory_view_get_file_from_path (MYFM_DIRECTORY_VIEW (treeview), path);
 
     if (myfm_file)
         myfm_window_open_file_async (parent_window, (MyFMFile*) myfm_file, dirview_index);
@@ -254,6 +252,53 @@ static void myfm_file_icon_data_func (GtkTreeViewColumn *tree_column, GtkCellRen
     }
 }
 
+static void edit_filename_callback (MyFMFile *file, gpointer directory_view)
+{
+    gtk_widget_queue_draw (GTK_WIDGET (directory_view));
+
+    /* if the file is opened (and thus the directory view to the right of self is displaying its contents)
+     * we make sure to refresh this directory view as well */
+    if (myfm_file_is_open (file)) {
+
+        MyFMWindow *parent_win = MYFM_WINDOW (gtk_widget_get_toplevel (GTK_WIDGET (directory_view)));
+        MyFMDirectoryView *next = myfm_window_get_next_directory_view (parent_win,
+                                                                       MYFM_DIRECTORY_VIEW (directory_view));
+        myfm_directory_view_refresh_files_async (next);
+        if (myfm_file_is_open (next->directory))
+            myfm_window_close_directory_view (parent_win, myfm_window_get_next_directory_view (parent_win, next));
+    }
+}
+
+static void myfm_directory_view_on_cell_edited (GtkCellRendererText *renderer, gchar *path,
+                                                gchar *new_text, gpointer directory_view)
+{
+    MyFMDirectoryView *self;
+    MyFMFile *selected_file;
+    GtkTreePath *file_path;
+
+    self = MYFM_DIRECTORY_VIEW (directory_view);
+    file_path = gtk_tree_path_new_from_string (path);
+    selected_file = myfm_directory_view_get_file_from_path (self, file_path);
+
+    myfm_file_set_display_name_async (selected_file, new_text,
+                                      edit_filename_callback, self);
+}
+
+void myfm_directory_view_start_rename_file (MyFMDirectoryView *self, MyFMFile *file,
+                                            GtkTreePath *file_path)
+{
+    GtkTreeViewColumn *col;
+    GtkCellRenderer *renderer;
+
+    col = gtk_tree_view_get_column (GTK_TREE_VIEW (self), 0);
+    renderer = g_object_get_data (G_OBJECT (col), "renderer");
+    /* set and unset editable - never allow editing unless start_rename is called */
+    g_object_set (G_OBJECT (renderer), "editable", TRUE, NULL);
+    gtk_tree_view_set_cursor_on_cell (GTK_TREE_VIEW (self), file_path,
+                                      col, NULL, TRUE);
+    g_object_set (G_OBJECT (renderer), "editable", FALSE, NULL);
+}
+
 /* sets whether to display hidden files (dotfiles) */
 void myfm_directory_view_set_show_hidden (MyFMDirectoryView *self, gboolean show_hidden)
 {
@@ -265,7 +310,8 @@ gboolean myfm_directory_view_get_show_hidden (MyFMDirectoryView *self)
     return self->show_hidden;
 }
 
-MyFMFile *myfm_directory_view_get_file (MyFMDirectoryView *self, GtkTreePath *path)
+MyFMFile *myfm_directory_view_get_file_from_path (MyFMDirectoryView *self,
+                                                      GtkTreePath *path)
 {
     GtkTreeModel *model;
     GtkTreeIter iter;
@@ -323,12 +369,14 @@ static void myfm_directory_view_setup_files_column (MyFMDirectoryView *self)
     gtk_tree_view_column_set_attributes (col, renderer, NULL);
     gtk_tree_view_column_set_cell_data_func (col, renderer, myfm_file_icon_data_func, NULL, NULL);
 
-
     renderer = gtk_cell_renderer_text_new ();
     gtk_cell_renderer_set_padding (renderer, 4, 1);
     gtk_tree_view_column_pack_start (col, renderer, TRUE);
     gtk_tree_view_column_set_attributes (col, renderer, NULL);
     gtk_tree_view_column_set_cell_data_func (col, renderer, myfm_file_name_data_func, NULL, NULL);
+    g_object_set_data (G_OBJECT (col), "renderer", renderer);
+    g_signal_connect (GTK_CELL_RENDERER_TEXT (renderer), "edited",
+                      G_CALLBACK (myfm_directory_view_on_cell_edited), self);
 
     gtk_tree_view_column_set_resizable (col, TRUE);
     gtk_tree_view_append_column (GTK_TREE_VIEW (self), col);

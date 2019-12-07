@@ -115,7 +115,7 @@ static void myfm_file_init_io_fields_async (MyFMFile *self, MyFMFileCallback cal
 
     /* TODO: only query for the info we need */
     g_file_query_info_async (self->priv->g_file, "*",
-                             G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS, G_PRIORITY_DEFAULT,
+                             G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS, G_PRIORITY_HIGH,
                              self->priv->cancellable, myfm_file_IO_fields_callback, cb_data);
 
     /* keep file alive until callback is invoked to prevent potential use after free */
@@ -243,6 +243,54 @@ void myfm_file_update_async (MyFMFile *self, GFile *new_g_file,
   
     myfm_file_clear_io_fields (self);
     myfm_file_init_io_fields_async (self, callback, user_data);
+}
+
+static void myfm_file_set_display_name_callback (GObject *g_file, GAsyncResult *res,
+                                                 gpointer callback_data)
+{
+    GFile *new_g_file;
+    GError_autoptr error = NULL;
+    struct callback_data* cb_data;
+
+    new_g_file = g_file_set_display_name_finish (G_OBJECT (g_file), res, &error);
+    if (error) {
+        /* handle error */
+    }
+    else {
+        cb_data = (struct callback_data *) callback_data;
+
+        myfm_file_clear_io_fields (cb_data->self);
+        g_object_unref (cb_data->self->priv->g_file);
+        /* g_object_ref (new_g_file); */ /* NOTE: don't think we need this */
+        cb_data->self->priv->g_file = new_g_file;
+        cb_data->self->priv->filetype = g_file_query_file_type (new_g_file,
+                                                                G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS,
+                                                                NULL);
+        /* TODO: only query for type, display name, things that might've changed */
+        g_file_query_info_async (new_g_file, "*", G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS,
+                                 G_PRIORITY_HIGH, cb_data->self->priv->cancellable,
+                                 myfm_file_IO_fields_callback, cb_data);
+
+        /* keep file alive until callback is invoked to prevent potential use after free */
+        myfm_file_ref (cb_data->self);
+    }
+}
+
+void myfm_file_set_display_name_async (MyFMFile *self, const char *display_name,
+                                       MyFMFileCallback callback, gpointer user_data)
+{
+    struct callback_data *cb_data;
+
+    cb_data = malloc (sizeof (cb_data));
+    cb_data->self = self;
+    cb_data->callback = callback;
+    cb_data->user_data = user_data;
+
+    g_file_set_display_name_async (myfm_file_get_g_file (self),
+                                   display_name, G_PRIORITY_HIGH,
+                                   self->priv->cancellable,
+                                   myfm_file_set_display_name_callback,
+                                   cb_data);
 }
 
 gboolean myfm_file_is_open (MyFMFile *self)

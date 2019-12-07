@@ -14,6 +14,7 @@ struct _MyFMContextMenu {
     GtkMenu parent_instance;
     MyFMDirectoryView *dirview;
     MyFMFile *file;
+    GtkTreePath *file_path;
 };
 
 G_DEFINE_TYPE (MyFMContextMenu, myfm_context_menu, GTK_TYPE_MENU)
@@ -55,8 +56,10 @@ static void myfm_context_menu_on_item_activate (GtkMenuItem *item, gpointer myfm
 
         myfm_window_open_file_async (window, self->file, dirview_index);
     }
-    else if (!strcmp (label, "test")) {
-        g_debug ("test");
+    else if (!strcmp (label, "Rename...")) {
+        g_debug ("rename");
+        myfm_directory_view_start_rename_file (self->dirview, self->file, self->file_path);
+        /* force start editing cell in treeview */
     }
 }
 
@@ -186,7 +189,7 @@ GtkWidget *myfm_context_menu_new_submenu_for_open_with (MyFMContextMenu *self)
     }
     g_list_free (recommended_apps);
 
-    other_apps = new_menu_item ("Other Applications..", 0, 0);
+    other_apps = new_menu_item ("Other Applications...", 0, 0);
     gtk_menu_shell_append (GTK_MENU_SHELL (submenu), other_apps);
     gtk_widget_show (other_apps);
     g_signal_connect (GTK_MENU_ITEM (other_apps), "activate",
@@ -224,17 +227,17 @@ static void myfm_context_menu_fill_for_file (MyFMContextMenu *self)
 
     myfm_context_menu_append_and_setup (self, new_menu_item ("Open", GDK_KEY_Return, 0), FALSE);
     myfm_context_menu_append_and_setup (self, open_with, FALSE);
-    myfm_context_menu_append_and_setup (self, new_menu_item ("blabla", 0, 0), FALSE);
-    myfm_context_menu_append_and_setup (self, new_menu_item ("blabla", 0, 0), FALSE);
-    myfm_context_menu_append_and_setup (self, new_menu_item ("blabla", 0, 0), FALSE);
-    myfm_context_menu_append_and_setup (self, new_menu_item ("blabla", 0, 0), FALSE);
-    myfm_context_menu_append_and_setup (self, new_menu_item ("blabla", 0, 0), FALSE);
-    myfm_context_menu_append_and_setup (self, new_menu_item ("test", 0, 0), FALSE);
+    myfm_context_menu_append_and_setup (self, new_menu_item ("Open in New Window", 0, 0), FALSE);
+    myfm_context_menu_append_and_setup (self, new_menu_item ("Copy", 0, 0), FALSE);
+    myfm_context_menu_append_and_setup (self, new_menu_item ("Cut", 0, 0), FALSE);
+    myfm_context_menu_append_and_setup (self, new_menu_item ("Rename...", 0, 0), FALSE);
+    myfm_context_menu_append_and_setup (self, new_menu_item ("Delete", 0, 0), FALSE);
 }
 
 static void myfm_context_menu_init (MyFMContextMenu *self)
 {
     self->file = NULL;
+    self->file_path = NULL;
     self->dirview = NULL;
 }
 
@@ -243,13 +246,15 @@ static void myfm_context_menu_class_init (MyFMContextMenuClass *cls)
 }
 
 /* NOTE: these constructors may not be good for potential language bindings */
-MyFMContextMenu *myfm_context_menu_new_for_file (MyFMDirectoryView *dirview, MyFMFile *file)
+MyFMContextMenu *myfm_context_menu_new_for_file (MyFMDirectoryView *dirview, MyFMFile *file,
+                                                 GtkTreePath *file_path)
 {
     MyFMContextMenu *self;
 
     self = g_object_new (MYFM_TYPE_CONTEXT_MENU, NULL);
     self->file = file;
     self->dirview = dirview;
+    self->file_path = file_path;
 
     myfm_context_menu_fill_for_file (self);
 

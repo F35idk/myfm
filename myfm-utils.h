@@ -9,7 +9,6 @@
 
 #include "myfm-window.h"
 
-GtkWidget *myfm_utils_new_error_dialog (MyFMWindow *parent, char *format_msg, ...);
 void myfm_utils_popup_error_dialog (MyFMWindow *parent, char *format_msg, ...);
 
 #endif /* __MYFM_UTILS_H */

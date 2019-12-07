@@ -33,7 +33,10 @@ void       myfm_file_set_is_open                (MyFMFile *self, gboolean is_ope
 const char *myfm_file_get_display_name          (MyFMFile *self);
 const char *myfm_file_get_content_type          (MyFMFile *self);
 void       myfm_file_from_g_file_async          (GFile *g_file, MyFMFileCallback callback, gpointer user_data);
-void       myfm_file_update_async               (MyFMFile *self, GFile *new_g_file, MyFMFileCallback callback, gpointer user_data);
+void       myfm_file_update_async               (MyFMFile *self, GFile *new_g_file,
+                                                 MyFMFileCallback callback, gpointer user_data);
+void       myfm_file_set_display_name_async     (MyFMFile *self, const char *display_name,
+                                                 MyFMFileCallback callback, gpointer user_data);
 void       myfm_file_unref                      (MyFMFile *self);
 MyFMFile   *myfm_file_ref                       (MyFMFile *self); /* mustn't be void to fit glib boxed api */
 MyFMFile   *myfm_file_new_with_info             (GFile *g_file, GFileInfo *info);
