@@ -1,9 +1,13 @@
+/*
+ * Created by f35 on 03.13.19.
+*/
 
 #include <stdarg.h>
 #include <gtk/gtk.h>
 
 #include "myfm-window.h"
 #include "myfm-utils.h"
+#define G_LOG_DOMAIN myfm-utils
 
 void myfm_utils_popup_error_dialog (MyFMWindow *parent, char *format_msg, ...)
 {
@@ -26,3 +30,4 @@ void myfm_utils_popup_error_dialog (MyFMWindow *parent, char *format_msg, ...)
     gtk_dialog_run (GTK_DIALOG (error_dialog));
     gtk_widget_destroy (error_dialog);
 }
+

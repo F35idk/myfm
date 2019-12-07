@@ -8,6 +8,7 @@
 #include "myfm-context-menu.h"
 #include "myfm-file.h"
 #include "myfm-window.h"
+#define G_LOG_DOMAIN "myfm-directory-view"
 
 struct _MyFMDirectoryView {
     GtkTreeView parent_instance;
@@ -99,8 +100,7 @@ static void myfm_directory_view_on_dir_change (GFileMonitor *monitor, GFile *fil
            break;
        case G_FILE_MONITOR_EVENT_CHANGED :
        case G_FILE_MONITOR_EVENT_ATTRIBUTE_CHANGED :
-           puts ("changed");
-           // TODO: fill in this
+           /* TODO: handle this? probably not needed */
            break;
    }
 }
@@ -148,8 +148,7 @@ static void myfm_directory_view_on_file_renamed (MyFMDirectoryView *self, GFile 
         } while (gtk_tree_model_iter_next (GTK_TREE_MODEL (store), &iter));
     }
 
-    g_debug ("renamed !!!!!!!!!! \n\n");
-    puts ("renamed !!!!!!!!!! \n\n");
+    g_debug ("file renamed \n");
 }
 
 static void myfm_directory_view_on_file_moved_out (MyFMDirectoryView *self, GFile *orig_g_file)
@@ -183,8 +182,7 @@ static void myfm_directory_view_on_file_moved_out (MyFMDirectoryView *self, GFil
 
     }
 
-    g_debug ("moved out !!!!!!!!!! \n\n");
-    puts ("moved out !!!!!!!!!! \n\n");
+    g_debug ("file moved out \n");
 }
 
 static void myfm_file_to_store_callback (MyFMFile *myfm_file, gpointer store)
@@ -217,9 +215,7 @@ static void myfm_directory_view_on_file_moved_in (MyFMDirectoryView *self, GFile
 
     myfm_file_from_g_file_async (new_g_file, myfm_file_to_store_callback, store);
 
-    /* TODO: ENABLE DEBUG MESSAGES */
-    g_debug ("moved in !!!!!!!!!! \n\n");
-    puts ("moved in !!!!!!!!!! \n\n");
+    g_debug ("file moved in \n");
 }
 
 /* GtkCellRenderer data function for getting the display name of a file in a cell */

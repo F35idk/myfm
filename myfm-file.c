@@ -6,6 +6,7 @@
 #include <gio/gio.h>
 
 #include "myfm-file.h"
+#define G_LOG_DOMAIN "myfm-file"
 
 struct MyFMFilePrivate {
     GFile *g_file;
@@ -285,8 +286,7 @@ GIcon *myfm_file_get_icon (MyFMFile *self)
 
 void myfm_file_free (MyFMFile *self)
 {
-    printf ("freeing: ");
-    puts (myfm_file_get_display_name (self));
+    g_debug ("freeing : %s", myfm_file_get_display_name (self));
 
     if (self->priv->g_file) {
         g_object_unref (self->priv->g_file);
@@ -311,11 +311,9 @@ void myfm_file_free (MyFMFile *self)
  * it should be more than enough. */
 void myfm_file_unref (MyFMFile *self)
 {
-    printf ("unrefing: %s", myfm_file_get_display_name (self));
-    printf (", current refcount: %u \n", self->priv->refcount);
+    g_debug ("unrefing: %s, current refcount: %u \n",
+             myfm_file_get_display_name (self), self->priv->refcount);
     self->priv->refcount--;
-
-    printf ("refcount: %u \n", self->priv->refcount);
 
     if (!self->priv->refcount)
        myfm_file_free (self);
@@ -323,8 +321,8 @@ void myfm_file_unref (MyFMFile *self)
 
 MyFMFile *myfm_file_ref (MyFMFile *self)
 {
-    printf ("refing: %s", myfm_file_get_display_name (self));
-    printf (", current refcount: %u \n", self->priv->refcount);
+    g_debug ("refing: %s, current refcount: %u \n",
+             myfm_file_get_display_name (self), self->priv->refcount);
     self->priv->refcount++;
 
     return self;

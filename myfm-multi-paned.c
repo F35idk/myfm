@@ -5,6 +5,7 @@
 #include <gtk/gtk.h>
 
 #include "myfm-multi-paned.h"
+#define G_LOG_DOMAIN "myfm-multi-paned"
 
 struct _MyFMMultiPaned {
     GtkPaned parent_instance;

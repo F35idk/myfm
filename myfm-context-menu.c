@@ -8,6 +8,7 @@
 #include "myfm-directory-view.h"
 #include "myfm-utils.h"
 #include "myfm-context-menu.h"
+#define G_LOG_DOMAIN "myfm-context-menu"
 
 struct _MyFMContextMenu {
     GtkMenu parent_instance;
@@ -55,7 +56,7 @@ static void myfm_context_menu_on_item_activate (GtkMenuItem *item, gpointer myfm
         myfm_window_open_file_async (window, self->file, dirview_index);
     }
     else if (!strcmp (label, "test")) {
-        puts ("test");
+        g_debug ("test");
     }
 }
 

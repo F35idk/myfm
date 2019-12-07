@@ -11,6 +11,7 @@
 #include "myfm-directory-view.h"
 #include "myfm-multi-paned.h"
 #include "myfm-utils.h"
+#define G_LOG_DOMAIN "myfm-window"
 
 struct _MyFMWindow {
     GtkApplicationWindow parent_instance;
@@ -31,7 +32,6 @@ struct _MyFMWindow {
 
 G_DEFINE_TYPE (MyFMWindow, myfm_window, GTK_TYPE_APPLICATION_WINDOW)
 
-/* TODO: REPLACE PRINTFS WITH G_DEBUGS! */
 static void mpaned_scroll_left_callback (MyFMMultiPaned *mpaned, gdouble scroll_dest, gpointer pane_scroll)
 {
     gboolean return_val;
@@ -108,6 +108,7 @@ static void myfm_window_open_other (MyFMWindow *self, MyFMFile *file)
     app_infos = g_app_info_get_recommended_for_type (myfm_file_get_content_type (file));
     g_files = g_list_append (NULL, myfm_file_get_g_file (file));
 
+    /* NOTE: difference between this returning false and error being set? handle both? */
     g_app_info_launch (g_list_first (app_infos)->data, g_files, NULL, &error);
 
     if (error) {

@@ -8,6 +8,7 @@
 #include "myfm-application.h"
 #include "myfm-window.h"
 #include "myfm-file.h"
+#define G_LOG_DOMAIN "myfm-application"
 
 struct _MyFMApplication {
     GtkApplication parent_instance;
