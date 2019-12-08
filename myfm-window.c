@@ -103,7 +103,7 @@ static void myfm_window_open_other (MyFMWindow *self, MyFMFile *file)
 {
     GList *app_infos;
     GList *g_files;
-    GError_autoptr error = NULL;
+    GError *error = NULL;
 
     app_infos = g_app_info_get_recommended_for_type (myfm_file_get_content_type (file));
     g_files = g_list_append (NULL, myfm_file_get_g_file (file));
@@ -119,6 +119,7 @@ static void myfm_window_open_other (MyFMWindow *self, MyFMFile *file)
         g_critical ("error in myfm_window when opening file(s) with '%s': %s",
                     g_app_info_get_display_name (g_list_first (app_infos)->data),
                     error->message);
+        g_error_free (error);
     }
 
     g_list_free (g_files);

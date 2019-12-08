@@ -127,20 +127,13 @@ static void myfm_directory_view_on_file_renamed (MyFMDirectoryView *self, GFile 
                 /* connect callback to redraw self once the display name has been updated */
                 myfm_file_update_async (myfm_file, new_g_file, myfm_directory_view_queue_draw_callback, self);
 
-                /* if the file is opened (and thus the directory view to the right of self is displaying its contents)
-                 * we make sure to refresh this directory view as well */
                 if (myfm_file_is_open (myfm_file)) {
+                    MyFMWindow *parent_win;
+                    MyFMDirectoryView *next;
 
-                    MyFMWindow *parent_win = MYFM_WINDOW (gtk_widget_get_toplevel (GTK_WIDGET (self)));
-                    MyFMDirectoryView *next = myfm_window_get_next_directory_view (parent_win, self);
-
-                    myfm_directory_view_refresh_files_async (next);
-
-                    /* this directory view might also have open subdirectories and directory views that are in need of
-                     * refreshing. so instead of recursively updating all of these (which would be a pain to do), we
-                     * just close them (for now, at least) */
-                    if (myfm_file_is_open (next->directory))
-                        myfm_window_close_directory_view (parent_win, myfm_window_get_next_directory_view (parent_win, next));
+                    parent_win = MYFM_WINDOW (gtk_widget_get_toplevel (GTK_WIDGET (self)));
+                    next = myfm_window_get_next_directory_view (parent_win, self);
+                    myfm_window_close_directory_view (parent_win, myfm_window_get_next_directory_view (parent_win, next));
                 }
             }
         } while (gtk_tree_model_iter_next (GTK_TREE_MODEL (store), &iter));
@@ -256,16 +249,14 @@ static void edit_filename_callback (MyFMFile *file, gpointer directory_view)
 {
     gtk_widget_queue_draw (GTK_WIDGET (directory_view));
 
-    /* if the file is opened (and thus the directory view to the right of self is displaying its contents)
-     * we make sure to refresh this directory view as well */
+    /* if the file is opened, close it */
     if (myfm_file_is_open (file)) {
+        MyFMWindow *parent_win;
+        MyFMDirectoryView *next;
 
-        MyFMWindow *parent_win = MYFM_WINDOW (gtk_widget_get_toplevel (GTK_WIDGET (directory_view)));
-        MyFMDirectoryView *next = myfm_window_get_next_directory_view (parent_win,
-                                                                       MYFM_DIRECTORY_VIEW (directory_view));
-        myfm_directory_view_refresh_files_async (next);
-        if (myfm_file_is_open (next->directory))
-            myfm_window_close_directory_view (parent_win, myfm_window_get_next_directory_view (parent_win, next));
+        parent_win = MYFM_WINDOW (gtk_widget_get_toplevel (GTK_WIDGET (directory_view)));
+        next = myfm_window_get_next_directory_view (parent_win, MYFM_DIRECTORY_VIEW (directory_view));
+        myfm_window_close_directory_view (parent_win, MYFM_DIRECTORY_VIEW (next));
     }
 }
 
@@ -280,8 +271,9 @@ static void myfm_directory_view_on_cell_edited (GtkCellRendererText *renderer, g
     file_path = gtk_tree_path_new_from_string (path);
     selected_file = myfm_directory_view_get_file_from_path (self, file_path);
 
+    gtk_tree_path_free (file_path);
     myfm_file_set_display_name_async (selected_file, new_text,
-                                      edit_filename_callback, self);
+                                      (MyFMFileCallback) edit_filename_callback, self);
 }
 
 void myfm_directory_view_start_rename_file (MyFMDirectoryView *self, MyFMFile *file,
@@ -384,7 +376,7 @@ static void myfm_directory_view_setup_files_column (MyFMDirectoryView *self)
 
 static void myfm_directory_view_setup_monitor (MyFMDirectoryView *self)
 {
-    GError_autoptr error = NULL; /* auto */
+    GError *error = NULL;
 
     self->directory_monitor = g_file_monitor_directory (myfm_file_get_g_file (self->directory),
                                                         G_FILE_MONITOR_WATCH_MOVES, NULL, &error);
@@ -392,7 +384,8 @@ static void myfm_directory_view_setup_monitor (MyFMDirectoryView *self)
     if (error) {
         g_object_unref (self->directory_monitor);
         g_critical ("unable to initialize directory monitor on directory "
-                   "view: %s \n", error->message);
+                    "view: %s \n", error->message);
+        g_error_free (error);
         return;
     }
 
@@ -420,7 +413,7 @@ static gint n_files = 32; /* number of files to request per g_file_enumerator it
  * function calls itself until all files have been listed */
 static void myfm_directory_view_next_files_callback (GObject *file_enumerator, GAsyncResult *result, gpointer self)
 {
-    GError_autoptr error = NULL; /* auto_ptr or not? at least we avoid g_error_free everywhere */
+    GError *error = NULL;
     GList *directory_list;
 
     directory_list = g_file_enumerator_next_files_finish (G_FILE_ENUMERATOR (file_enumerator),
@@ -430,6 +423,7 @@ static void myfm_directory_view_next_files_callback (GObject *file_enumerator, G
          * the file no longer exists, etc. */
         g_critical ("unable to add files to list: %s \n", error->message);
         g_object_unref (file_enumerator);
+        g_error_free (error);
         return;
     }
     else if (directory_list == NULL) {
@@ -442,7 +436,7 @@ static void myfm_directory_view_next_files_callback (GObject *file_enumerator, G
     else {
         /* enumerator returned successfully */
         GtkTreeIter iter;
-        GFileInfo *child_info; /* doesn't need auto_ptr */
+        GFileInfo *child_info;
         GList *current_node = directory_list;
         GFile *parent_dir = myfm_file_get_g_file (MYFM_DIRECTORY_VIEW (self)->directory);
         GtkListStore *store = GTK_LIST_STORE (gtk_tree_view_get_model (GTK_TREE_VIEW (self)));
@@ -488,20 +482,20 @@ static void myfm_directory_view_next_files_callback (GObject *file_enumerator, G
 
 static void myfm_directory_view_enum_finished_callback (GObject *directory, GAsyncResult *result, gpointer self)
 {
-    GFileEnumerator_autoptr file_enumerator = NULL;
-    GError_autoptr error = NULL;
+    GFileEnumerator *file_enumerator;
+    GError *error = NULL;
 
     file_enumerator = g_file_enumerate_children_finish (G_FILE (directory), result, &error);
 
     if (error) {
         g_critical ("error in enum_finished_callback: %s \n", error->message);
+        g_error_free (error);
         return;
     }
     else {
         g_file_enumerator_next_files_async (file_enumerator, n_files, G_PRIORITY_HIGH,
                                             MYFM_DIRECTORY_VIEW (self)->IO_canceller,
                                             myfm_directory_view_next_files_callback, self);
-        file_enumerator = NULL; /* set local pointer to NULL to prevent auto_unref before callback is invoked */
     }
 }
 /* ------------------------------------------------------------------------------------------ *

@@ -73,7 +73,7 @@ static void myfm_context_menu_on_open_with_app (GtkMenuItem *item, gpointer myfm
     MyFMContextMenu *self;
     GAppInfo *app_info;
     GList *g_file_list;
-    GError_autoptr error = NULL;
+    GError *error = NULL;
 
     self = MYFM_CONTEXT_MENU (myfm_context_menu);
     app_info = g_object_get_data (G_OBJECT (item), "app_info");
@@ -90,6 +90,7 @@ static void myfm_context_menu_on_open_with_app (GtkMenuItem *item, gpointer myfm
                                        error->message);
         g_critical ("error in myfm_context_menu when opening file(s) with '%s': %s \n",
                     g_app_info_get_display_name (app_info), error->message);
+        g_error_free (error);
     }
 
     g_list_free (g_file_list);
@@ -101,7 +102,7 @@ static void on_app_chooser_item_activate (GtkAppChooserWidget *chooser_widget, G
 {
     GFile *g_file;
     GList *g_file_list;
-    GError_autoptr error = NULL;
+    GError *error = NULL;
 
     g_object_get (G_OBJECT (chooser_dialog), "gfile", &g_file, NULL);
     g_file_list = g_list_append (NULL, g_file);
@@ -119,6 +120,7 @@ static void on_app_chooser_item_activate (GtkAppChooserWidget *chooser_widget, G
                                        error->message);
         g_critical ("error in myfm_context_menu when opening file(s) with '%s': %s \n",
                     g_app_info_get_display_name (app_info), error->message);
+        g_error_free (error);
     }
     else {
         gtk_window_close (GTK_WINDOW (chooser_dialog));

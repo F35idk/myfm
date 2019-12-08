@@ -68,8 +68,8 @@ struct callback_data {
 
 static void myfm_file_IO_fields_callback (GObject *g_file, GAsyncResult *res, gpointer callback_data)
 {
-    GFileInfo_autoptr info = NULL;
-    GError_autoptr error = NULL;
+    GFileInfo *info;
+    GError *error = NULL;
     MyFMFile *self;
     struct callback_data *cb_data;
 
@@ -84,8 +84,8 @@ static void myfm_file_IO_fields_callback (GObject *g_file, GAsyncResult *res, gp
         /* unref myfm_file if the error is caused by the file no longer existing */
         if (g_error_matches (error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND))
             myfm_file_unref (self);
-        else /* only unref info if file still exists. might still emit a warning for being null though */
-            g_object_unref (info);
+
+        g_error_free (error);
     }
     else {
         myfm_file_clear_io_fields (self);
@@ -102,13 +102,21 @@ static void myfm_file_IO_fields_callback (GObject *g_file, GAsyncResult *res, gp
     /* decrement refcount of file when we're done */
     myfm_file_unref (self);
     free (cb_data);
+    g_object_unref (info);
 }
 
-static void myfm_file_init_io_fields_async (MyFMFile *self, MyFMFileCallback callback, gpointer user_data)
+static void myfm_file_init_io_fields_async (MyFMFile *self, MyFMFileCallback callback,
+                                            gpointer user_data)
 {
     struct callback_data *cb_data;
 
     cb_data = malloc (sizeof (struct callback_data));
+
+    if (cb_data == NULL) {
+        g_critical ("error in myfm_file_init_io_fields_async: malloc returned NULL \n");
+        return;
+    }
+
     cb_data->self = self;
     cb_data->callback = callback;
     cb_data->user_data = user_data;
@@ -172,27 +180,26 @@ void myfm_file_from_g_file_async (GFile *g_file, MyFMFileCallback callback, gpoi
 MyFMFile *myfm_file_from_g_file (GFile *g_file)
 {
     MyFMFile *myfm_file;
-    GFileInfo_autoptr info = NULL;
-    GError_autoptr error = NULL;
+    GFileInfo *info;
+    GError *error = NULL;
 
     myfm_file = myfm_file_new_without_io_fields (g_file);
 
-    if (myfm_file == NULL) {
-        /* g_object_unref (info); FIXME: this shouldn't be needed */
+    if (myfm_file == NULL)
         return myfm_file;
-    }
 
     info = g_file_query_info (g_file, "*",
                               G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS, NULL, &error);
 
-    if (error)
+    if (error) {
         g_critical ("unable to get info on file: %s \n", error->message);
-    else
+        g_error_free (error);
+    }
+    else {
         myfm_file_init_io_fields_with_info (myfm_file, info);
+    }
 
-    /* valgrind tells me unref'ing is needed, despite
-    * info being an auto_ptr */
-    g_object_unref (info); /* TODO: why? */
+    g_object_unref (info);
 
     return myfm_file;
 }
@@ -221,7 +228,7 @@ MyFMFile *myfm_file_from_path (const char *path)
 
     g_file = g_file_new_for_path (path);
     myfm_file = myfm_file_from_g_file (g_file);
-    /* myfm_file_from_g_file () refs the g_file, so we unref it here (could also use auto) */
+    /* myfm_file_from_g_file () refs the g_file, so we unref it here */
     g_object_unref (g_file);
 
     return myfm_file;
@@ -249,39 +256,48 @@ static void myfm_file_set_display_name_callback (GObject *g_file, GAsyncResult *
                                                  gpointer callback_data)
 {
     GFile *new_g_file;
-    GError_autoptr error = NULL;
+    GError *error = NULL;
     struct callback_data* cb_data;
 
     new_g_file = g_file_set_display_name_finish (G_OBJECT (g_file), res, &error);
+
     if (error) {
-        /* handle error */
+        g_critical ("error in myfm_file_set_display_name_callback: %s",
+                    error->message);
+        g_error_free (error);
+        return;
     }
-    else {
-        cb_data = (struct callback_data *) callback_data;
 
-        myfm_file_clear_io_fields (cb_data->self);
-        g_object_unref (cb_data->self->priv->g_file);
-        /* g_object_ref (new_g_file); */ /* NOTE: don't think we need this */
-        cb_data->self->priv->g_file = new_g_file;
-        cb_data->self->priv->filetype = g_file_query_file_type (new_g_file,
-                                                                G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS,
-                                                                NULL);
-        /* TODO: only query for type, display name, things that might've changed */
-        g_file_query_info_async (new_g_file, "*", G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS,
-                                 G_PRIORITY_HIGH, cb_data->self->priv->cancellable,
-                                 myfm_file_IO_fields_callback, cb_data);
+    cb_data = (struct callback_data *) callback_data;
 
-        /* keep file alive until callback is invoked to prevent potential use after free */
-        myfm_file_ref (cb_data->self);
-    }
+    myfm_file_clear_io_fields (cb_data->self);
+    g_object_unref (cb_data->self->priv->g_file);
+    /* g_object_ref (new_g_file); */ /* NOTE: we don't need this */
+    cb_data->self->priv->g_file = new_g_file;
+    cb_data->self->priv->filetype = g_file_query_file_type (new_g_file,
+                                                            G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS,
+                                                            NULL);
+    /* TODO: only query for type, display name, things that might've changed */
+    g_file_query_info_async (new_g_file, "*", G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS,
+                             G_PRIORITY_HIGH, cb_data->self->priv->cancellable,
+                             myfm_file_IO_fields_callback, cb_data);
+
+    /* keep file alive until callback is invoked to prevent potential use after free */
+    myfm_file_ref (cb_data->self);
 }
 
-void myfm_file_set_display_name_async (MyFMFile *self, const char *display_name,
+void myfm_file_set_display_name_async (MyFMFile *self, char *display_name,
                                        MyFMFileCallback callback, gpointer user_data)
 {
     struct callback_data *cb_data;
 
-    cb_data = malloc (sizeof (cb_data));
+    cb_data = malloc (sizeof (struct callback_data));
+
+    if (cb_data == NULL) {
+        g_critical ("error in myfm_file_set_display_name_async: malloc returned NULL \n");
+        return;
+    }
+
     cb_data->self = self;
     cb_data->callback = callback;
     cb_data->user_data = user_data;
