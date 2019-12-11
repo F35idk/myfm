@@ -7,75 +7,56 @@
 #include "myfm-window.h"
 #include "myfm-directory-view.h"
 #include "myfm-utils.h"
-#include "myfm-context-menu.h"
-#define G_LOG_DOMAIN "myfm-context-menu"
+#include "myfm-file-menu.h"
+#define G_LOG_DOMAIN "myfm-file-menu"
 
-struct _MyFMContextMenu {
+struct _MyFMFileMenu {
     GtkMenu parent_instance;
     MyFMDirectoryView *dirview;
     MyFMFile *file;
     GtkTreePath *file_path;
 };
 
-G_DEFINE_TYPE (MyFMContextMenu, myfm_context_menu, GTK_TYPE_MENU)
+G_DEFINE_TYPE (MyFMFileMenu, myfm_file_menu, GTK_TYPE_MENU)
 
-/* gets the window context menu was opened at */
-MyFMWindow *myfm_context_menu_get_window (MyFMContextMenu *self)
+/* gets the window file-menu was opened at */
+MyFMWindow *myfm_file_menu_get_window (MyFMFileMenu *self)
 {
     return MYFM_WINDOW (gtk_widget_get_toplevel (GTK_WIDGET (self->dirview)));
 }
 
-GtkWidget *new_menu_item (const gchar *label, guint keyval, GdkModifierType accel_mods)
-{
-    GtkWidget *menu_item;
-    GtkWidget *child;
-
-    menu_item = gtk_menu_item_new_with_label (label);
-    child = gtk_bin_get_child (GTK_BIN (menu_item));
-
-    if (keyval || accel_mods)
-        gtk_accel_label_set_accel (GTK_ACCEL_LABEL (child), keyval, accel_mods);
-
-    return menu_item;
-}
-
-static void myfm_context_menu_on_item_activate (GtkMenuItem *item, gpointer myfm_context_menu)
+static void myfm_file_menu_on_item_activate (GtkMenuItem *item, gpointer myfm_file_menu)
 {
     MyFMWindow *window;
-    MyFMContextMenu *self;
+    MyFMFileMenu *self;
     const gchar *label;
 
-    self = MYFM_CONTEXT_MENU (myfm_context_menu);
+    self = MYFM_FILE_MENU (myfm_file_menu);
     label = gtk_menu_item_get_label (item);
 
     if (!strcmp (label, "Open")) {
         gint dirview_index;
 
-        window = myfm_context_menu_get_window (self);
+        window = myfm_file_menu_get_window (self);
         dirview_index = myfm_window_get_directory_view_index (window, self->dirview);
 
         myfm_window_open_file_async (window, self->file, dirview_index);
     }
     else if (!strcmp (label, "Rename...")) {
-        g_debug ("rename");
-        myfm_directory_view_start_rename_file (self->dirview, self->file, self->file_path);
         /* force start editing cell in treeview */
+        myfm_directory_view_start_rename_file (self->dirview, self->file, self->file_path);
+        g_debug ("rename");
     }
 }
 
-static void myfm_context_menu_on_item_hover (GtkMenuItem *item, gpointer myfm_context_menu)
+static void myfm_file_menu_on_open_with_app (GtkMenuItem *item, gpointer myfm_file_menu)
 {
-    /* NOTE: turns out submenus auto-popup, so we don't need to do it manually */
-}
-
-static void myfm_context_menu_on_open_with_app (GtkMenuItem *item, gpointer myfm_context_menu)
-{
-    MyFMContextMenu *self;
+    MyFMFileMenu *self;
     GAppInfo *app_info;
     GList *g_file_list;
     GError *error = NULL;
 
-    self = MYFM_CONTEXT_MENU (myfm_context_menu);
+    self = MYFM_FILE_MENU (myfm_file_menu);
     app_info = g_object_get_data (G_OBJECT (item), "app_info");
     g_file_list = g_list_append (NULL, myfm_file_get_g_file (self->file));
 
@@ -84,11 +65,11 @@ static void myfm_context_menu_on_open_with_app (GtkMenuItem *item, gpointer myfm
     g_app_info_launch (app_info, g_file_list, NULL, &error);
 
     if (error) {
-        myfm_utils_popup_error_dialog (myfm_context_menu_get_window (self), "error in \
+        myfm_utils_popup_error_dialog (myfm_file_menu_get_window (self), "error in \
                                        myfm_window when opening file(s) with '%s': %s \n",
                                        g_app_info_get_display_name (app_info),
                                        error->message);
-        g_critical ("error in myfm_context_menu when opening file(s) with '%s': %s \n",
+        g_critical ("error in myfm_file_menu when opening file(s) with '%s': %s \n",
                     g_app_info_get_display_name (app_info), error->message);
         g_error_free (error);
     }
@@ -118,7 +99,7 @@ static void on_app_chooser_item_activate (GtkAppChooserWidget *chooser_widget, G
                                        when opening file(s) with '%s': %s \n",
                                        g_app_info_get_display_name (app_info),
                                        error->message);
-        g_critical ("error in myfm_context_menu when opening file(s) with '%s': %s \n",
+        g_critical ("error in myfm_file_menu when opening file(s) with '%s': %s \n",
                     g_app_info_get_display_name (app_info), error->message);
         g_error_free (error);
     }
@@ -146,15 +127,15 @@ static void on_app_chooser_response (GtkDialog *chooser_dialog, gint response_id
     }
 }
 
-static void myfm_context_menu_on_open_with_other (GtkMenuItem *item, gpointer myfm_context_menu)
+static void myfm_file_menu_on_open_with_other (GtkMenuItem *item, gpointer myfm_file_menu)
 {
     GtkWidget *chooser_dialog;
     GtkWidget *chooser_widget;
-    MyFMContextMenu *self;
+    MyFMFileMenu *self;
     GtkWindow *parent;
 
-    self = MYFM_CONTEXT_MENU (myfm_context_menu);
-    parent = GTK_WINDOW (myfm_context_menu_get_window (self));
+    self = MYFM_FILE_MENU (myfm_file_menu);
+    parent = GTK_WINDOW (myfm_file_menu_get_window (self));
     chooser_dialog = gtk_app_chooser_dialog_new (parent, GTK_DIALOG_MODAL,
                                           myfm_file_get_g_file (self->file));
     chooser_widget = gtk_app_chooser_dialog_get_widget (GTK_APP_CHOOSER_DIALOG (chooser_dialog));
@@ -164,7 +145,7 @@ static void myfm_context_menu_on_open_with_other (GtkMenuItem *item, gpointer my
     gtk_widget_show_all (chooser_dialog);
 }
 
-GtkWidget *myfm_context_menu_new_submenu_for_open_with (MyFMContextMenu *self)
+GtkWidget *myfm_file_menu_new_submenu_for_open_with (MyFMFileMenu *self)
 {
     GtkWidget *submenu;
     GtkWidget *other_apps;
@@ -180,97 +161,75 @@ GtkWidget *myfm_context_menu_new_submenu_for_open_with (MyFMContextMenu *self)
         GAppInfo *app_info;
 
         app_info = current->data;
-        item = new_menu_item (g_app_info_get_display_name (app_info), 0, 0);
+        item = myfm_utils_new_menu_item (g_app_info_get_display_name (app_info), 0, 0);
         gtk_menu_shell_append (GTK_MENU_SHELL (submenu), item);
         gtk_widget_show (item);
         g_object_set_data_full (G_OBJECT (item), "app_info", app_info, g_object_unref);
         g_signal_connect (GTK_MENU_ITEM (item), "activate",
-                          G_CALLBACK (myfm_context_menu_on_open_with_app), self);
+                          G_CALLBACK (myfm_file_menu_on_open_with_app), self);
 
         current = current->next;
     }
     g_list_free (recommended_apps);
 
-    other_apps = new_menu_item ("Other Applications...", 0, 0);
+    other_apps = myfm_utils_new_menu_item ("Other Applications...", 0, 0);
     gtk_menu_shell_append (GTK_MENU_SHELL (submenu), other_apps);
     gtk_widget_show (other_apps);
     g_signal_connect (GTK_MENU_ITEM (other_apps), "activate",
-                      G_CALLBACK (myfm_context_menu_on_open_with_other), self);
+                      G_CALLBACK (myfm_file_menu_on_open_with_other), self);
 
     return submenu;
 }
 
-static void myfm_context_menu_append_and_setup (MyFMContextMenu *self, GtkWidget *menu_item, gboolean hover)
+static void myfm_file_menu_append_and_setup (MyFMFileMenu *self, GtkWidget *menu_item)
 {
     gtk_menu_shell_append (GTK_MENU_SHELL (self), menu_item);
     gtk_widget_show (menu_item);
 
-    if (!hover)
-        g_signal_connect (GTK_MENU_ITEM (menu_item), "activate",
-                          G_CALLBACK (myfm_context_menu_on_item_activate), self);
-    else
-        g_signal_connect (GTK_MENU_ITEM (menu_item), "select",
-                          G_CALLBACK (myfm_context_menu_on_item_hover), self);
+    g_signal_connect (GTK_MENU_ITEM (menu_item), "activate",
+                      G_CALLBACK (myfm_file_menu_on_item_activate), self);
 }
 
-static void myfm_context_menu_fill_for_directory_view (MyFMContextMenu *self)
-{
-    /* TODO: implement */
-}
-
-static void myfm_context_menu_fill_for_file (MyFMContextMenu *self)
+static void myfm_file_menu_fill (MyFMFileMenu *self)
 {
     GtkWidget *open_with;
     GtkWidget *open_with_submenu;
 
-    open_with = new_menu_item ("Open With", 0, 0);
-    open_with_submenu = myfm_context_menu_new_submenu_for_open_with (self);
+    open_with = myfm_utils_new_menu_item ("Open With", 0, 0);
+    open_with_submenu = myfm_file_menu_new_submenu_for_open_with (self);
     gtk_menu_item_set_submenu (GTK_MENU_ITEM (open_with), open_with_submenu);
 
-    myfm_context_menu_append_and_setup (self, new_menu_item ("Open", GDK_KEY_Return, 0), FALSE);
-    myfm_context_menu_append_and_setup (self, open_with, FALSE);
-    myfm_context_menu_append_and_setup (self, new_menu_item ("Open in New Window", 0, 0), FALSE);
-    myfm_context_menu_append_and_setup (self, new_menu_item ("Copy", 0, 0), FALSE);
-    myfm_context_menu_append_and_setup (self, new_menu_item ("Cut", 0, 0), FALSE);
-    myfm_context_menu_append_and_setup (self, new_menu_item ("Rename...", 0, 0), FALSE);
-    myfm_context_menu_append_and_setup (self, new_menu_item ("Delete", 0, 0), FALSE);
+    myfm_file_menu_append_and_setup (self, myfm_utils_new_menu_item ("Open", GDK_KEY_Return, 0));
+    myfm_file_menu_append_and_setup (self, open_with);
+    myfm_file_menu_append_and_setup (self, myfm_utils_new_menu_item ("Open in New Window", 0, 0));
+    myfm_file_menu_append_and_setup (self, myfm_utils_new_menu_item ("Copy", 0, 0));
+    myfm_file_menu_append_and_setup (self, myfm_utils_new_menu_item ("Cut", 0, 0));
+    myfm_file_menu_append_and_setup (self, myfm_utils_new_menu_item ("Rename...", 0, 0));
+    myfm_file_menu_append_and_setup (self, myfm_utils_new_menu_item ("Delete", 0, 0));
 }
 
-static void myfm_context_menu_init (MyFMContextMenu *self)
+static void myfm_file_menu_init (MyFMFileMenu *self)
 {
     self->file = NULL;
     self->file_path = NULL;
     self->dirview = NULL;
 }
 
-static void myfm_context_menu_class_init (MyFMContextMenuClass *cls)
+static void myfm_file_menu_class_init (MyFMFileMenuClass *cls)
 {
 }
 
-/* NOTE: these constructors may not be good for potential language bindings */
-MyFMContextMenu *myfm_context_menu_new_for_file (MyFMDirectoryView *dirview, MyFMFile *file,
-                                                 GtkTreePath *file_path)
+GtkWidget *myfm_file_menu_new (MyFMDirectoryView *dirview, MyFMFile *file,
+                                  GtkTreePath *file_path)
 {
-    MyFMContextMenu *self;
+    MyFMFileMenu *self;
 
-    self = g_object_new (MYFM_TYPE_CONTEXT_MENU, NULL);
+    self = g_object_new (MYFM_TYPE_FILE_MENU, NULL);
     self->file = file;
     self->dirview = dirview;
     self->file_path = file_path;
 
-    myfm_context_menu_fill_for_file (self);
+    myfm_file_menu_fill (self);
 
-    return self;
-}
-
-MyFMContextMenu *myfm_context_menu_new_for_directory_view (MyFMDirectoryView *dirview)
-{
-    MyFMContextMenu *self;
-
-    self = g_object_new (MYFM_TYPE_CONTEXT_MENU, NULL);
-    self->dirview = dirview;
-
-    myfm_context_menu_fill_for_directory_view (self);
-
-    return self;
+    return GTK_WIDGET (self);
 }

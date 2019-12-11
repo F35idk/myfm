@@ -5,7 +5,7 @@
 #include <gtk/gtk.h>
 
 #include "myfm-directory-view.h"
-#include "myfm-context-menu.h"
+#include "myfm-file-menu.h"
 #include "myfm-file.h"
 #include "myfm-window.h"
 #define G_LOG_DOMAIN "myfm-directory-view"
@@ -41,15 +41,15 @@ static void myfm_directory_view_on_right_click (GtkWidget *widget, GdkEvent *eve
                                                 &path, &col, &cell_x, &cell_y);
         if (result) {
             if (path) { /* a file was right clicked */
-                MyFMContextMenu *menu;
+                GtkWidget *menu;
                 MyFMFile *selected;
 
                 selected = myfm_directory_view_get_file_from_path (MYFM_DIRECTORY_VIEW (treeview),
                                                                        path);
-                menu = myfm_context_menu_new_for_file (MYFM_DIRECTORY_VIEW (treeview), selected, path);
+                menu = myfm_file_menu_new (MYFM_DIRECTORY_VIEW (treeview), selected, path);
                 gtk_menu_popup_at_pointer (GTK_MENU (menu), event);
             }
-            else {
+            else { /* the directory view was right clicked (no specific file) */
                 gtk_tree_path_free (path);
                 /* popup some different context menu */
             }
@@ -73,29 +73,30 @@ static void myfm_directory_view_on_file_select (GtkTreeView *treeview, GtkTreePa
 }
 
 /* functions only used in on_dir_change. should maybe be inlined to avoid confusion */
-static void myfm_directory_view_on_file_renamed (MyFMDirectoryView *self, GFile *orig_g_file, GFile *new_g_file);
-static void myfm_directory_view_on_file_moved_out (MyFMDirectoryView *self, GFile *orig_g_file);
-static void myfm_directory_view_on_file_moved_in (MyFMDirectoryView *self, GFile *new_g_file);
+static void myfm_directory_view_on_external_rename (MyFMDirectoryView *self, GFile *orig_g_file, GFile *new_g_file);
+static void myfm_directory_view_on_external_move_out (MyFMDirectoryView *self, GFile *orig_g_file);
+static void myfm_directory_view_on_external_move_in (MyFMDirectoryView *self, GFile *new_g_file);
 
 static void myfm_directory_view_on_dir_change (GFileMonitor *monitor, GFile *file, GFile *other_file,
-                           GFileMonitorEvent event_type, gpointer dirview)
+                                               GFileMonitorEvent event_type, gpointer dirview)
 {
    MyFMDirectoryView *self = MYFM_DIRECTORY_VIEW (dirview);
 
    switch (event_type) {
        case G_FILE_MONITOR_EVENT_RENAMED :
-           myfm_directory_view_on_file_renamed (self, file, other_file);
+           myfm_directory_view_on_external_rename (self, file, other_file);
            break;
 
        case G_FILE_MONITOR_EVENT_MOVED_OUT :
        case G_FILE_MONITOR_EVENT_DELETED :
-           myfm_directory_view_on_file_moved_out (self, file);
+           myfm_directory_view_on_external_move_out (self, file);
            break;
 
        case G_FILE_MONITOR_EVENT_MOVED_IN :
        case G_FILE_MONITOR_EVENT_CREATED :
-           myfm_directory_view_on_file_moved_in (self, file);
+           myfm_directory_view_on_external_move_in (self, file);
            break;
+
        case G_FILE_MONITOR_EVENT_CHANGED :
        case G_FILE_MONITOR_EVENT_ATTRIBUTE_CHANGED :
            /* TODO: handle this? probably not needed */
@@ -103,13 +104,23 @@ static void myfm_directory_view_on_dir_change (GFileMonitor *monitor, GFile *fil
    }
 }
 
-static void myfm_directory_view_queue_draw_callback (MyFMFile *myfm_file, gpointer self)
+static void myfm_directory_view_file_update_callback (MyFMFile *myfm_file, gpointer self)
 {
     /* TODO: specify area to redraw? */
     gtk_widget_queue_draw (GTK_WIDGET (self));
+
+    /* if the file is open, close it */
+    if (myfm_file_is_open (myfm_file)) {
+        MyFMWindow *parent_win;
+        MyFMDirectoryView *next;
+        parent_win = MYFM_WINDOW (gtk_widget_get_toplevel (GTK_WIDGET (self)));
+        next = myfm_window_get_next_directory_view (parent_win, self);
+        myfm_window_close_directory_view (parent_win, myfm_window_get_next_directory_view (parent_win, next));
+    }
 }
 
-static void myfm_directory_view_on_file_renamed (MyFMDirectoryView *self, GFile *orig_g_file, GFile *new_g_file)
+/* updates files that have been renamed externally (outside of myfm) */
+static void myfm_directory_view_on_external_rename (MyFMDirectoryView *self, GFile *orig_g_file, GFile *new_g_file)
 {
     GtkListStore *store;
     GtkTreeIter iter;
@@ -121,20 +132,15 @@ static void myfm_directory_view_on_file_renamed (MyFMDirectoryView *self, GFile 
 
         do {
             gtk_tree_model_get (GTK_TREE_MODEL (store), &iter, 0, &myfm_file, -1); /* out myfm_file */
-
-            if (myfm_file != NULL && g_file_equal (myfm_file_get_g_file (myfm_file), orig_g_file)) {
-
+            /* if the g_file in myfm_file matches 'new_g_file', the rename that took place was done
+             * by myfm and thus did not happen externally, so we don't need to handle it here */
+            if (myfm_file != NULL && g_file_equal (myfm_file_get_g_file (myfm_file), new_g_file)) {
+                return;
+            }
+            else if (myfm_file != NULL && g_file_equal (myfm_file_get_g_file (myfm_file), orig_g_file)) {
                 /* connect callback to redraw self once the display name has been updated */
-                myfm_file_update_async (myfm_file, new_g_file, myfm_directory_view_queue_draw_callback, self);
-
-                if (myfm_file_is_open (myfm_file)) {
-                    MyFMWindow *parent_win;
-                    MyFMDirectoryView *next;
-
-                    parent_win = MYFM_WINDOW (gtk_widget_get_toplevel (GTK_WIDGET (self)));
-                    next = myfm_window_get_next_directory_view (parent_win, self);
-                    myfm_window_close_directory_view (parent_win, myfm_window_get_next_directory_view (parent_win, next));
-                }
+                myfm_file_update_async (myfm_file, new_g_file,
+                                        myfm_directory_view_file_update_callback, self);
             }
         } while (gtk_tree_model_iter_next (GTK_TREE_MODEL (store), &iter));
     }
@@ -142,7 +148,7 @@ static void myfm_directory_view_on_file_renamed (MyFMDirectoryView *self, GFile 
     g_debug ("file renamed \n");
 }
 
-static void myfm_directory_view_on_file_moved_out (MyFMDirectoryView *self, GFile *orig_g_file)
+static void myfm_directory_view_on_external_move_out (MyFMDirectoryView *self, GFile *orig_g_file)
 {
     GtkListStore *store;
     GtkTreeIter iter;
@@ -159,10 +165,11 @@ static void myfm_directory_view_on_file_moved_out (MyFMDirectoryView *self, GFil
 
                 /* if the file is an opened directory, close it */
                 if (myfm_file_is_open (myfm_file)) {
+                    MyFMWindow *parent_win;
+                    MyFMDirectoryView *next;
 
-                    MyFMWindow *parent_win = MYFM_WINDOW (gtk_widget_get_toplevel (GTK_WIDGET (self)));
-                    MyFMDirectoryView *next = myfm_window_get_next_directory_view (parent_win, self);
-
+                    parent_win = MYFM_WINDOW (gtk_widget_get_toplevel (GTK_WIDGET (self)));
+                    next = myfm_window_get_next_directory_view (parent_win, self);
                     myfm_window_close_directory_view (parent_win, next);
                 }
 
@@ -184,7 +191,7 @@ static void myfm_file_to_store_callback (MyFMFile *myfm_file, gpointer store)
     gtk_list_store_set (GTK_LIST_STORE (store), &iter, 0, myfm_file, -1);
 }
 
-static void myfm_directory_view_on_file_moved_in (MyFMDirectoryView *self, GFile *new_g_file)
+static void myfm_directory_view_on_external_move_in (MyFMDirectoryView *self, GFile *new_g_file)
 {
     GtkListStore *store;
     MyFMFile *myfm_file;
@@ -247,6 +254,7 @@ static void myfm_file_icon_data_func (GtkTreeViewColumn *tree_column, GtkCellRen
 
 static void edit_filename_callback (MyFMFile *file, gpointer directory_view)
 {
+    /* redraw */
     gtk_widget_queue_draw (GTK_WIDGET (directory_view));
 
     /* if the file is opened, close it */
@@ -273,7 +281,8 @@ static void myfm_directory_view_on_cell_edited (GtkCellRendererText *renderer, g
 
     gtk_tree_path_free (file_path);
     myfm_file_set_display_name_async (selected_file, new_text,
-                                      (MyFMFileCallback) edit_filename_callback, self);
+                                      (MyFMFileCallback) myfm_directory_view_file_update_callback,
+                                      self);
 }
 
 void myfm_directory_view_start_rename_file (MyFMDirectoryView *self, MyFMFile *file,

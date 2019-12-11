@@ -32,3 +32,16 @@ void myfm_utils_popup_error_dialog (MyFMWindow *parent, char *format_msg, ...)
     gtk_widget_destroy (error_dialog);
 }
 
+GtkWidget *myfm_utils_new_menu_item (const gchar *label, guint keyval, GdkModifierType accel_mods)
+{
+    GtkWidget *menu_item;
+    GtkWidget *child;
+
+    menu_item = gtk_menu_item_new_with_label (label);
+    child = gtk_bin_get_child (GTK_BIN (menu_item));
+
+    if (keyval || accel_mods)
+        gtk_accel_label_set_accel (GTK_ACCEL_LABEL (child), keyval, accel_mods);
+
+    return menu_item;
+}

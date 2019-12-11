@@ -269,7 +269,6 @@ static void myfm_file_set_display_name_callback (GObject *g_file, GAsyncResult *
     }
 
     cb_data = (struct callback_data *) callback_data;
-
     myfm_file_clear_io_fields (cb_data->self);
     g_object_unref (cb_data->self->priv->g_file);
     /* g_object_ref (new_g_file); */ /* NOTE: we don't need this */
