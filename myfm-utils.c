@@ -9,7 +9,8 @@
 #include "myfm-utils.h"
 #define G_LOG_DOMAIN "myfm-utils"
 
-void myfm_utils_popup_error_dialog (MyFMWindow *parent, char *format_msg, ...)
+void
+myfm_utils_popup_error_dialog (MyFMWindow *parent, char *format_msg, ...)
 {
     va_list va;
     va_list va_cp;
@@ -32,7 +33,9 @@ void myfm_utils_popup_error_dialog (MyFMWindow *parent, char *format_msg, ...)
     gtk_widget_destroy (error_dialog);
 }
 
-GtkWidget *myfm_utils_new_menu_item (const gchar *label, guint keyval, GdkModifierType accel_mods)
+GtkWidget *
+myfm_utils_new_menu_item (const gchar *label, guint keyval,
+                          GdkModifierType accel_mods)
 {
     GtkWidget *menu_item;
     GtkWidget *child;
@@ -41,7 +44,8 @@ GtkWidget *myfm_utils_new_menu_item (const gchar *label, guint keyval, GdkModifi
     child = gtk_bin_get_child (GTK_BIN (menu_item));
 
     if (keyval || accel_mods)
-        gtk_accel_label_set_accel (GTK_ACCEL_LABEL (child), keyval, accel_mods);
+        gtk_accel_label_set_accel (GTK_ACCEL_LABEL (child),
+                                   keyval, accel_mods);
 
     return menu_item;
 }
