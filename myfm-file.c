@@ -72,12 +72,13 @@ static void myfm_file_init_io_fields_with_info (MyFMFile *self, GFileInfo *info)
 }
 
 /* convenience struct passed around by async functions in myfm_file.
- * used for setting custom callback functions to be executed once
- * a myfm_file has been initialized async. */
+ * allows users of these functions to set custom callbacks to be
+ * executed once an async operation is finished */
 struct callback_data {
     MyFMFile *self;
     MyFMFileCallback callback;
     gpointer user_data;
+    GError *error;
 };
 
 static void myfm_file_IO_fields_callback (GObject *g_file, GAsyncResult *res,
@@ -94,30 +95,27 @@ static void myfm_file_IO_fields_callback (GObject *g_file, GAsyncResult *res,
 
     if (error) {
         g_critical ("unable to initialize myfm_file: %s \n", error->message);
-        self->priv->IO_display_name = NULL;
-
-        /* unref myfm_file if the error is caused by the file no longer existing */
-        if (g_error_matches (error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND))
-            myfm_file_unref (self);
-
-        g_error_free (error);
+        /* NOTE: we don't need to do much here, since we're
+         * just passing the g_error to our myfm_file_callback
+         * so it can be handled by the caller instead */
     }
     else {
         myfm_file_clear_io_fields (self);
         myfm_file_init_io_fields_with_info (self, info);
+    }
 
-        /* execute custom provided callback */
-        if (cb_data->callback) {
-            cb_data->callback (self, cb_data->user_data);
-            cb_data->callback = NULL;
-            cb_data->user_data = NULL;
-        }
+    if (cb_data->callback) {
+        /* we pass potential errors to the caller, allowing
+         * them to choose how to handle it */
+        cb_data->callback (self, cb_data->user_data, error);
+        cb_data->callback = NULL;
+        cb_data->user_data = NULL;
     }
 
     /* decrement refcount of file when we're done */
     myfm_file_unref (self);
     free (cb_data);
-    g_object_unref (info);
+    g_object_unref (info); /* might emit a warning, info is often NULL */
 }
 
 static void myfm_file_init_io_fields_async (MyFMFile *self, MyFMFileCallback callback,
@@ -174,6 +172,8 @@ static MyFMFile *myfm_file_new_without_io_fields (GFile *g_file)
     myfm_file->priv->is_open_dir = FALSE;
     myfm_file->priv->refcount = 1;
     myfm_file->priv->cancellable = g_cancellable_new ();
+    /* ensure cancellable is unref'd after cancellation */
+    g_signal_connect (myfm_file->priv->cancellable, "cancelled", g_object_unref, NULL);
     myfm_file->priv->filetype = g_file_query_file_type (g_file,
                                                         G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS,
                                                         NULL);
@@ -264,10 +264,22 @@ void myfm_file_update_async (MyFMFile *self, GFile *new_g_file,
     self->priv->filetype = g_file_query_file_type (new_g_file,
                                                    G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS,
                                                    NULL);
-  
-    myfm_file_clear_io_fields (self);
+
     myfm_file_init_io_fields_async (self, callback, user_data);
 }
+
+// void myfm_file_update_attributes_async (MyFMFile *self, GFile *new_g_file,
+//                                         const char *g_file_attributes,
+//                                         MyFMFileCallback callback, gpointer data)
+// {
+//     g_object_unref (self->priv->g_file);
+//     g_object_ref (new_g_file);
+//     self->priv->g_file = new_g_file;
+//
+//     myfm_file_clear_io_fields (self);
+//     myfm_file_init_io_fields_async (self, callback, user_data);
+//
+// }
 
 static void myfm_file_set_display_name_callback (GObject *g_file, GAsyncResult *res,
                                                  gpointer callback_data)
@@ -313,7 +325,7 @@ void myfm_file_set_display_name_async (MyFMFile *self, char *display_name,
 
     if (cb_data == NULL) {
         g_critical ("error in myfm_file_set_display_name_async: \
-        malloc returned NULL \n");
+                    malloc returned NULL \n");
         return;
     }
 
@@ -396,7 +408,8 @@ void myfm_file_free (MyFMFile *self)
     /* cancel all IO on file */
     if (self->priv->cancellable) {
         g_cancellable_cancel (self->priv->cancellable);
-        g_object_unref (self->priv->cancellable);
+        /* NOTE: there is no need to unref/free cancellable here,
+         * as it is set to auto-unref itself after cancellation */
         self->priv->cancellable = NULL;
     }
 

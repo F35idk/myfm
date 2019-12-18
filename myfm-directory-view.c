@@ -113,8 +113,13 @@ static void myfm_directory_view_update_file_sorting (MyFMDirectoryView *self)
 }
 
 /* currently just used for when a file has been renamed */
-static void myfm_directory_view_file_update_callback (MyFMFile *myfm_file, gpointer self)
+static void myfm_directory_view_file_update_callback (MyFMFile *myfm_file, gpointer self,
+                                                      GError *error)
 {
+    if (error)
+        g_error_free (error);
+        /* NOTE: we don't do any special error handling here */
+
     /* redraw self. TODO: specify area? */
     gtk_widget_queue_draw (GTK_WIDGET (self));
     myfm_directory_view_update_file_sorting (self);
@@ -134,7 +139,6 @@ static void myfm_directory_view_file_update_callback (MyFMFile *myfm_file, gpoin
 static void myfm_directory_view_on_external_rename (MyFMDirectoryView *self, GFile *orig_g_file, GFile *new_g_file);
 static void myfm_directory_view_on_external_move_out (MyFMDirectoryView *self, GFile *orig_g_file);
 static void myfm_directory_view_on_external_move_in (MyFMDirectoryView *self, GFile *new_g_file);
-static void myfm_directory_view_on_attribute_change (MyFMDirectoryView *self, GFile *orig_g_file, GFile *new_g_file);
 
 static void myfm_directory_view_on_dir_change (GFileMonitor *monitor, GFile *file, GFile *other_file,
                                                GFileMonitorEvent event_type, gpointer dirview)
@@ -158,8 +162,8 @@ static void myfm_directory_view_on_dir_change (GFileMonitor *monitor, GFile *fil
 
        /* case G_FILE_MONITOR_EVENT_CHANGED : */
        case G_FILE_MONITOR_EVENT_ATTRIBUTE_CHANGED :
-           g_debug ("attr. changed");
-           myfm_directory_view_on_attribute_change (self, file, other_file);
+           /* don't need to handle this, for now */
+           g_debug ("file changed an attr."); /* g_file_get_path (file)); */
            break;
    }
 }
@@ -183,13 +187,12 @@ static void myfm_directory_view_on_external_rename (MyFMDirectoryView *self, GFi
             }
             else if (myfm_file != NULL && g_file_equal (myfm_file_get_g_file (myfm_file), orig_g_file)) {
                 /* connect callback to redraw self once the display name has been updated */
+                g_debug ("%s renamed to (something)", myfm_file_get_display_name (myfm_file));
                 myfm_file_update_async (myfm_file, new_g_file,
                                         myfm_directory_view_file_update_callback, self);
             }
         } while (gtk_tree_model_iter_next (GTK_TREE_MODEL (store), &iter));
     }
-
-    g_debug ("file renamed \n");
 }
 
 static void myfm_directory_view_on_external_move_out (MyFMDirectoryView *self, GFile *orig_g_file)
@@ -204,8 +207,6 @@ static void myfm_directory_view_on_external_move_out (MyFMDirectoryView *self, G
         do {
             gtk_tree_model_get (GTK_TREE_MODEL (store), &iter, 0, &myfm_file, -1); /* out myfm_file */
 
-            puts (myfm_file_get_display_name (myfm_file));
-
             if (myfm_file != NULL && g_file_equal (myfm_file_get_g_file (myfm_file), orig_g_file)) {
 
                 /* if the file is an opened directory, close it */
@@ -218,25 +219,29 @@ static void myfm_directory_view_on_external_move_out (MyFMDirectoryView *self, G
                     myfm_window_close_directory_view (parent_win, next);
                 }
 
+                g_debug ("%s moved out", myfm_file_get_display_name (myfm_file));
+
                 myfm_file_unref (myfm_file);
                 gtk_list_store_remove (store, &iter);
             }
         } while (gtk_tree_model_iter_next (GTK_TREE_MODEL (store), &iter));
 
     }
-
-    g_debug ("file moved out");
 }
 
-static void myfm_directory_view_file_to_store_callback (MyFMFile *myfm_file, gpointer self)
+static void myfm_directory_view_file_to_store_callback (MyFMFile *myfm_file, gpointer self,
+                                                        GError *error)
 {
+    if (error)
+        g_error_free (error);
+        /* NOTE: we don't do any special error handling here */
+
     GtkTreeIter iter;
     GtkListStore *store;
 
     store = GTK_LIST_STORE (gtk_tree_view_get_model (GTK_TREE_VIEW (self)));
     gtk_list_store_append (GTK_LIST_STORE (store), &iter);
     gtk_list_store_set (GTK_LIST_STORE (store), &iter, 0, myfm_file, -1);
-    myfm_directory_view_update_file_sorting (self);
 }
 
 static void myfm_directory_view_on_external_move_in (MyFMDirectoryView *self, GFile *new_g_file)
@@ -260,26 +265,7 @@ static void myfm_directory_view_on_external_move_in (MyFMDirectoryView *self, GF
 
     myfm_file_from_g_file_async (new_g_file, myfm_directory_view_file_to_store_callback, self);
 
-    g_debug ("file moved in");
-}
-
-static void myfm_directory_view_on_attribute_change (MyFMDirectoryView *self, GFile *orig_g_file, GFile *new_g_file)
-{
-    GtkListStore *store;
-    GtkTreeIter iter;
-    MyFMFile *myfm_file;
-
-    store = GTK_LIST_STORE (gtk_tree_view_get_model (GTK_TREE_VIEW (self)));
-    if (gtk_tree_model_get_iter_first (GTK_TREE_MODEL (store), &iter)) {
-        do {
-            gtk_tree_model_get (GTK_TREE_MODEL (store), &iter, 0, &myfm_file, -1); /* out myfm_file */
-
-            if (myfm_file != NULL && g_file_equal (myfm_file_get_g_file (myfm_file), orig_g_file))
-                myfm_file_update_async (myfm_file, new_g_file,
-                                        myfm_directory_view_file_update_callback, self);
-
-        } while (gtk_tree_model_iter_next (GTK_TREE_MODEL (store), &iter));
-    }
+    g_debug ("file moved in"); /* g_file_get_path (new_g_file)); */
 }
 
 /* GtkCellRenderer data function for getting the display name of a file in a cell */
@@ -331,7 +317,7 @@ static void myfm_directory_view_on_cell_edited (GtkCellRendererText *renderer, g
 
     gtk_tree_path_free (file_path);
     myfm_file_set_display_name_async (selected_file, new_text,
-                                      (MyFMFileCallback) myfm_directory_view_file_update_callback,
+                                      myfm_directory_view_file_update_callback,
                                       self);
 }
 
@@ -556,6 +542,11 @@ static void myfm_directory_view_setup_monitor (MyFMDirectoryView *self)
         return;
     }
 
+    int rate_limit;
+    g_object_get (G_OBJECT (self->directory_monitor), "rate-limit", &rate_limit, NULL);
+    g_debug ("rate limit: %i", rate_limit);
+    // g_file_monitor_set_rate_limit (self->directory_monitor, 409600);
+
     g_signal_connect (self->directory_monitor, "changed",
                       G_CALLBACK (myfm_directory_view_on_dir_change), self);
 }
@@ -755,6 +746,7 @@ static void myfm_directory_view_init (MyFMDirectoryView *self)
 {
     self->IO_canceller = g_cancellable_new ();
     self->show_hidden = FALSE; /* TODO: make configurable */
+    self->file_sort_criteria = MYFM_SORT_NONE; /* TODO: make configurable */
 }
 
 static void myfm_directory_view_class_init (MyFMDirectoryViewClass *cls)

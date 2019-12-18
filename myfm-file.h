@@ -25,7 +25,7 @@ typedef struct MyFMFile {
     struct MyFMFilePrivate *priv;
 } MyFMFile;
 
-typedef void (*MyFMFileCallback)(MyFMFile *, gpointer);
+typedef void (*MyFMFileCallback)(MyFMFile *, gpointer, GError *);
 
 GFile      *myfm_file_get_g_file                (MyFMFile *self);
 GFileType  myfm_file_get_filetype               (MyFMFile *self);
