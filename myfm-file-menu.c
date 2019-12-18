@@ -20,7 +20,7 @@ struct _MyFMFileMenu {
 G_DEFINE_TYPE (MyFMFileMenu, myfm_file_menu, GTK_TYPE_MENU)
 
 /* gets the window file-menu was opened at */
-MyFMWindow *myfm_file_menu_get_window (MyFMFileMenu *self)
+static MyFMWindow *myfm_file_menu_get_window (MyFMFileMenu *self)
 {
     return MYFM_WINDOW (gtk_widget_get_toplevel (GTK_WIDGET (self->dirview)));
 }
@@ -145,7 +145,7 @@ static void myfm_file_menu_on_open_with_other (GtkMenuItem *item, gpointer myfm_
     gtk_widget_show_all (chooser_dialog);
 }
 
-GtkWidget *myfm_file_menu_new_submenu_for_open_with (MyFMFileMenu *self)
+static GtkWidget *myfm_file_menu_new_submenu_for_open_with (MyFMFileMenu *self)
 {
     GtkWidget *submenu;
     GtkWidget *other_apps;

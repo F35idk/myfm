@@ -71,6 +71,8 @@ static void myfm_window_open_dir_async (MyFMWindow *self, MyFMFile *dir, gint di
 
     /* create new directory view and fill it with files */
     dirview = myfm_directory_view_new (dir);
+    /* TODO: implement default sort */
+    /* myfm_directory_view_set_file_sort_criteria (dirview, MYFM_SORT_NAME_A_TO_Z); */
     myfm_directory_view_fill_store_async (dirview);
 
     /* "promise" to show our directory view once it has been filled */

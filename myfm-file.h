@@ -13,9 +13,12 @@
  * name, icon, filesize, etc.) that would otherwise require IO to obtain for each request.
  * a myfm_file does not refresh itself, so to keep it updated we monitor its g_file with a
  * g_file_monitor and call myfm_file_update accordingly */
-/* TODO: add icons, filesize to myfm_file (as described in comment above) */
 
 #define MYFM_TYPE_FILE (myfm_file_get_type ())
+#define MYFM_FILE_QUERY_ATTRIBUTES "standard::display-name,standard::icon,"\
+                                   "standard::content-type,standard::size,"\
+                                   "standard::is-symlink,standard::is-hidden,"\
+                                   "time::modified"
 
 struct MyFMFilePrivate;
 typedef struct MyFMFile {
@@ -28,6 +31,8 @@ GFile      *myfm_file_get_g_file                (MyFMFile *self);
 GFileType  myfm_file_get_filetype               (MyFMFile *self);
 GType      myfm_file_get_type                   (void);
 GIcon      *myfm_file_get_icon                  (MyFMFile *self);
+goffset    myfm_file_get_size                   (MyFMFile *self);
+GDateTime  *myfm_file_get_modification_time     (MyFMFile *self);
 gboolean   myfm_file_is_open                    (MyFMFile *self);
 void       myfm_file_set_is_open                (MyFMFile *self, gboolean is_open);
 const char *myfm_file_get_display_name          (MyFMFile *self);
