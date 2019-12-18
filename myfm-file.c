@@ -28,7 +28,7 @@ myfm_file_setup_g_icon (MyFMFile *self, GFileInfo *info)
 {
     self->priv->IO_g_icon = g_file_info_get_icon (info);
     if (!self->priv->IO_g_icon) {
-        g_critical ("unable to set icon on myfm_file: '%s' \n",
+        g_critical ("unable to set icon on myfm_file: '%s'",
                     myfm_file_get_display_name (self));
         /* use unknown file icon if icon can't be set */
         self->priv->IO_g_icon = g_themed_icon_new ("unknown");
@@ -98,7 +98,7 @@ myfm_file_IO_fields_callback (GObject *g_file, GAsyncResult *res,
     info = g_file_query_info_finish (G_FILE (g_file), res, &error);
 
     if (error) {
-        g_critical ("unable to initialize myfm_file: %s \n",
+        g_critical ("unable to initialize myfm_file: '%s'",
                     error->message);
         /* NOTE: we don't need to do much here, since we're
          * just passing the g_error to our myfm_file_callback
@@ -132,8 +132,8 @@ myfm_file_init_io_fields_async (MyFMFile *self, MyFMFileCallback callback,
     cb_data = malloc (sizeof (struct callback_data));
 
     if (cb_data == NULL) {
-        g_critical ("error in myfm_file_init_io_fields_async: \
-                    malloc returned NULL \n");
+        g_critical ("error in myfm_file_init_io_fields_async: "
+                    "malloc returned NULL");
         return;
     }
 
@@ -163,7 +163,7 @@ myfm_file_new_without_io_fields (GFile *g_file)
     myfm_file = malloc (sizeof (MyFMFile));
 
     if (myfm_file == NULL) {
-        g_critical ("malloc returned NULL, unable to create myfm_file \n");
+        g_critical ("malloc returned NULL, unable to create myfm_file");
         g_object_unref (g_file);
         return myfm_file;
     }
@@ -171,7 +171,7 @@ myfm_file_new_without_io_fields (GFile *g_file)
     myfm_file->priv = malloc (sizeof (struct MyFMFilePrivate));
 
     if (myfm_file->priv == NULL) {
-        g_critical ("malloc returned NULL, unable to create myfm_file \n");
+        g_critical ("malloc returned NULL, unable to create myfm_file");
         g_object_unref (g_file);
         return myfm_file;
     }
@@ -224,7 +224,7 @@ myfm_file_from_g_file (GFile *g_file)
                               G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS, NULL,
                               &error);
     if (error) {
-        g_critical ("unable to get info on file: %s \n", error->message);
+        g_critical ("unable to get info on file: '%s'", error->message);
         g_error_free (error);
     }
     else {
@@ -282,7 +282,7 @@ myfm_file_update_async (MyFMFile *self, GFile *new_g_file,
     myfm_file_init_io_fields_async (self, callback, user_data);
 }
 
-/* TODO: implement a update_attributes function for specific attributes? */
+/* TODO: implement an update_attributes function for specific attributes? */
 
 static void
 myfm_file_set_display_name_callback (GObject *g_file, GAsyncResult *res,
@@ -297,7 +297,7 @@ myfm_file_set_display_name_callback (GObject *g_file, GAsyncResult *res,
     cb_data = (struct callback_data *) callback_data;
 
     if (error) {
-        g_critical ("error in myfm_file_set_display_name_callback: %s",
+        g_critical ("error in myfm_file_set_display_name_callback: '%s'",
                     error->message);
         /* let the use handle the error */
         if (cb_data->callback) {
@@ -306,6 +306,7 @@ myfm_file_set_display_name_callback (GObject *g_file, GAsyncResult *res,
             cb_data->user_data = NULL;
         }
 
+        free (cb_data);
         return;
     }
 
@@ -337,8 +338,8 @@ myfm_file_set_display_name_async (MyFMFile *self, char *display_name,
     cb_data = malloc (sizeof (struct callback_data));
 
     if (cb_data == NULL) {
-        g_critical ("error in myfm_file_set_display_name_async: \
-                    malloc returned NULL \n");
+        g_critical ("error in myfm_file_set_display_name_async: "
+                    "malloc returned NULL \n");
         return;
     }
 
@@ -447,7 +448,7 @@ myfm_file_free (MyFMFile *self)
 void
 myfm_file_unref (MyFMFile *self)
 {
-    g_debug ("unrefing: %s, current refcount: %u \n",
+    g_debug ("unrefing: %s, current refcount: %u",
              myfm_file_get_display_name (self),
              self->priv->refcount);
     self->priv->refcount--;
@@ -459,7 +460,7 @@ myfm_file_unref (MyFMFile *self)
 MyFMFile *
 myfm_file_ref (MyFMFile *self)
 {
-    g_debug ("refing: %s, current refcount: %u \n",
+    g_debug ("refing: %s, current refcount: %u",
              myfm_file_get_display_name (self),
              self->priv->refcount);
     self->priv->refcount++;

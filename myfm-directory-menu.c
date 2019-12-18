@@ -64,21 +64,21 @@ myfm_directory_menu_new_submenu_for_sort (MyFMDirectoryMenu *self)
     GtkWidget *submenu;
 
     submenu = gtk_menu_new ();
-    setup_sort_subitem (submenu, myfm_utils_new_menu_item ("Last edited \
-                        (most recent first)", 0, 0),
+    setup_sort_subitem (submenu, myfm_utils_new_menu_item ("Last edited "
+                        "(most recent first)", 0, 0),
                         G_CALLBACK (on_sort_by_date_activate), self->dirview);
-    setup_sort_subitem (submenu, myfm_utils_new_menu_item ("Last edited \
-                        (most recent last)", 0, 0),
+    setup_sort_subitem (submenu, myfm_utils_new_menu_item ("Last edited "
+                        "(most recent last)", 0, 0),
                         G_CALLBACK (on_sort_by_date_reverse_activate), self->dirview);
     setup_sort_subitem (submenu, myfm_utils_new_menu_item ("Name (A-Z)", 0, 0),
                         G_CALLBACK (on_sort_by_name_a_z_activate), self->dirview);
     setup_sort_subitem (submenu, myfm_utils_new_menu_item ("Name (Z-A)", 0, 0),
                         G_CALLBACK (on_sort_by_name_z_a_activate), self->dirview);
-    setup_sort_subitem (submenu, myfm_utils_new_menu_item ("Size \
-                        (smallest to largest)", 0, 0),
+    setup_sort_subitem (submenu, myfm_utils_new_menu_item ("Size "
+                        "(smallest to largest)", 0, 0),
                         G_CALLBACK (on_sort_by_size_activate), self->dirview);
-    setup_sort_subitem (submenu, myfm_utils_new_menu_item ("Size \
-                        (largest to smallest)", 0, 0),
+    setup_sort_subitem (submenu, myfm_utils_new_menu_item ("Size "
+                        "(largest to smallest)", 0, 0),
                         G_CALLBACK (on_sort_by_size_reverse_activate), self->dirview);
 
     return submenu;

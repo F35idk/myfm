@@ -14,7 +14,6 @@ struct _MyFMFileMenu {
     GtkMenu parent_instance;
     MyFMDirectoryView *dirview;
     MyFMFile *file;
-    GtkTreePath *file_path;
 };
 
 G_DEFINE_TYPE (MyFMFileMenu, myfm_file_menu, GTK_TYPE_MENU)
@@ -48,8 +47,8 @@ myfm_file_menu_on_item_activate (GtkMenuItem *item,
     }
     else if (!strcmp (label, "Rename...")) {
         /* force start editing cell in treeview */
-        myfm_directory_view_start_rename_file (self->dirview, self->file,
-                                               self->file_path);
+        myfm_directory_view_start_rename_selected (self->dirview,
+                                                   self->file);
         g_debug ("rename");
     }
 }
@@ -234,11 +233,11 @@ myfm_file_menu_fill (MyFMFileMenu *self)
     myfm_file_menu_append_and_setup (self, myfm_utils_new_menu_item ("Delete", 0, 0));
 }
 
+
 static void
 myfm_file_menu_init (MyFMFileMenu *self)
 {
     self->file = NULL;
-    self->file_path = NULL;
     self->dirview = NULL;
 }
 
@@ -248,15 +247,13 @@ myfm_file_menu_class_init (MyFMFileMenuClass *cls)
 }
 
 GtkWidget *
-myfm_file_menu_new (MyFMDirectoryView *dirview,
-                    MyFMFile *file, GtkTreePath *file_path)
+myfm_file_menu_new (MyFMDirectoryView *dirview, MyFMFile *file)
 {
     MyFMFileMenu *self;
 
     self = g_object_new (MYFM_TYPE_FILE_MENU, NULL);
     self->file = file;
     self->dirview = dirview;
-    self->file_path = file_path;
 
     myfm_file_menu_fill (self);
 

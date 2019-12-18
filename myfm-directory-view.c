@@ -52,10 +52,9 @@ myfm_directory_view_on_right_click (GtkWidget *widget, GdkEvent *event,
 
                 selected = myfm_directory_view_get_file_from_path (MYFM_DIRECTORY_VIEW (treeview),
                                                                    path);
-                /* no need to free path - it is consumed by file_menu */
-                menu = myfm_file_menu_new (MYFM_DIRECTORY_VIEW (treeview),
-                                           selected, path);
+                menu = myfm_file_menu_new (MYFM_DIRECTORY_VIEW (treeview), selected);
                 gtk_menu_popup_at_pointer (GTK_MENU (menu), event);
+                gtk_tree_path_free (path);
             }
         }
         else { /* the directory view was right clicked (no specific file) */
@@ -353,12 +352,18 @@ myfm_directory_view_on_cell_edited (GtkCellRendererText *renderer, gchar *path,
 }
 
 void
-myfm_directory_view_start_rename_file (MyFMDirectoryView *self, MyFMFile *file,
-                                       GtkTreePath *file_path)
+myfm_directory_view_start_rename_selected (MyFMDirectoryView *self, MyFMFile *file)
 {
     GtkTreeViewColumn *col;
     GtkCellRenderer *renderer;
+    GtkTreeSelection *selection;
+    GtkTreeModel *model;
+    GtkTreeIter iter;
+    GtkTreePath *file_path;
 
+    selection = gtk_tree_view_get_selection (GTK_TREE_VIEW (self));
+    gtk_tree_selection_get_selected (selection, &model, &iter);
+    file_path = gtk_tree_model_get_path (model, &iter);
     col = gtk_tree_view_get_column (GTK_TREE_VIEW (self), 0);
     renderer = g_object_get_data (G_OBJECT (col), "renderer");
     /* set and unset editable - never allow editing unless start_rename is called */
@@ -366,6 +371,7 @@ myfm_directory_view_start_rename_file (MyFMDirectoryView *self, MyFMFile *file,
     gtk_tree_view_set_cursor_on_cell (GTK_TREE_VIEW (self), file_path,
                                       col, NULL, TRUE);
     g_object_set (G_OBJECT (renderer), "editable", FALSE, NULL);
+    gtk_tree_path_free (file_path);
 }
 
 static gint
@@ -585,8 +591,8 @@ myfm_directory_view_setup_monitor (MyFMDirectoryView *self)
 
     if (error) {
         g_object_unref (self->directory_monitor);
-        g_critical ("unable to initialize directory monitor \
-                    on directory view: %s \n", error->message);
+        g_critical ("unable to initialize directory monitor "
+                    "on directory view: '%s'", error->message);
         g_error_free (error);
         return;
     }
@@ -627,7 +633,7 @@ myfm_directory_view_next_files_callback (GObject *file_enumerator, GAsyncResult 
     if (error) {
         /* if IO was cancelled due to the directory view
          * being destroyed, if the file no longer exists, etc. */
-        g_critical ("unable to add files to list: %s \n", error->message);
+        g_critical ("unable to add files to list: '%s'", error->message);
         g_object_unref (file_enumerator);
         g_error_free (error);
         return;
@@ -700,7 +706,7 @@ myfm_directory_view_enum_finished_callback (GObject *directory, GAsyncResult *re
                                                         result, &error);
 
     if (error) {
-        g_critical ("error in enum_finished_callback: %s \n",
+        g_critical ("error in enum_finished_callback: '%s'",
                     error->message);
         g_error_free (error);
         return;
@@ -717,7 +723,7 @@ myfm_directory_view_enum_finished_callback (GObject *directory, GAsyncResult *re
 
 
 /* adds the files in the directory view's directory to its list store. sets
- * off a chain of crazy async functions and callbacks (above). also emits the
+ * off a chain of crazy async functions and callbacks (above). emits the
  * "filled" signal when done. order of execution is:
  * myfm_directory_view_fill_store_async --> g_file_enumerate_children_async
  * --> enum_files_callback --> g_file_enumerator_next_files_async

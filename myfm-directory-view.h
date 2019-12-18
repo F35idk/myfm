@@ -31,7 +31,7 @@ MyFMFile          *myfm_directory_view_get_directory         (MyFMDirectoryView 
 MyFMFile          *myfm_directory_view_get_file_from_path    (MyFMDirectoryView *self, GtkTreePath *path);
 void              myfm_directory_view_set_show_hidden        (MyFMDirectoryView *self, gboolean show_hidden);
 gboolean          myfm_directory_view_get_show_hidden        (MyFMDirectoryView *self);
-void              myfm_directory_view_start_rename_file      (MyFMDirectoryView *self, MyFMFile *file, GtkTreePath *file_path);
+void              myfm_directory_view_start_rename_selected  (MyFMDirectoryView *self, MyFMFile *file);
 void              myfm_directory_view_fill_store_async       (MyFMDirectoryView *self);
 void              myfm_directory_view_refresh_files_async    (MyFMDirectoryView *self);
 void              myfm_directory_view_set_file_sort_criteria (MyFMDirectoryView *self, MyFMSortCriteria criteria);
