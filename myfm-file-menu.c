@@ -8,6 +8,7 @@
 #include "myfm-directory-view.h"
 #include "myfm-utils.h"
 #include "myfm-file-menu.h"
+#include "myfm-file-operations.h"
 #define G_LOG_DOMAIN "myfm-file-menu"
 
 struct _MyFMFileMenu {
@@ -50,6 +51,12 @@ myfm_file_menu_on_item_activate (GtkMenuItem *item,
         myfm_directory_view_start_rename_selected (self->dirview,
                                                    self->file);
         g_debug ("rename");
+    }
+    else if (!strcmp (label, "Open in New Window")) {
+        myfm_file_operations_copy_async (self->file,
+                                         "/home/f35/Documents/misc/test/copy-to2/",
+                                         myfm_file_menu_get_window (self),
+                                         FALSE);
     }
 }
 
@@ -218,7 +225,11 @@ myfm_file_menu_fill (MyFMFileMenu *self)
 {
     GtkWidget *open_with;
     GtkWidget *open_with_submenu;
+    GtkWidget *copy;
+    GtkWidget *cut;
+    MyFMApplication *app;
 
+    app = MYFM_APPLICATION (gtk_window_get_application (GTK_WINDOW (myfm_file_menu_get_window (self))));
     open_with = myfm_utils_new_menu_item ("Open With", 0, 0);
     open_with_submenu = myfm_file_menu_new_submenu_for_open_with (self);
     gtk_menu_item_set_submenu (GTK_MENU_ITEM (open_with),
@@ -227,8 +238,17 @@ myfm_file_menu_fill (MyFMFileMenu *self)
     myfm_file_menu_append_and_setup (self, myfm_utils_new_menu_item ("Open", GDK_KEY_Return, 0));
     myfm_file_menu_append_and_setup (self, open_with);
     myfm_file_menu_append_and_setup (self, myfm_utils_new_menu_item ("Open in New Window", 0, 0));
-    myfm_file_menu_append_and_setup (self, myfm_utils_new_menu_item ("Copy", 0, 0));
-    myfm_file_menu_append_and_setup (self, myfm_utils_new_menu_item ("Cut", 0, 0));
+
+    copy = myfm_utils_new_menu_item ("Copy", 0, 0);
+    cut = myfm_utils_new_menu_item ("Cut", 0, 0);
+    if (myfm_application_copy_in_progress (app)) {
+        gtk_widget_set_sensitive (copy, FALSE);
+        gtk_widget_set_sensitive (cut, FALSE);
+        puts ("inpr");
+    }
+    myfm_file_menu_append_and_setup (self, copy);
+    myfm_file_menu_append_and_setup (self, cut);
+
     myfm_file_menu_append_and_setup (self, myfm_utils_new_menu_item ("Rename...", 0, 0));
     myfm_file_menu_append_and_setup (self, myfm_utils_new_menu_item ("Delete", 0, 0));
 }

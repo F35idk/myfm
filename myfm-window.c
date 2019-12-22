@@ -24,13 +24,12 @@ struct _MyFMWindow {
 
     /* parent of mpaned that allows horizontal scrolling */
     GtkScrolledWindow *pane_scroll;
-
-    /* FIXME: these could be static vars instead */
-    gint default_height;
-    gint default_width;
 };
 
 G_DEFINE_TYPE (MyFMWindow, myfm_window, GTK_TYPE_APPLICATION_WINDOW)
+
+static const gint default_height = 550;
+static const gint default_width = 890;
 
 static void
 mpaned_scroll_left_callback (MyFMMultiPaned *mpaned, gdouble scroll_dest,
@@ -67,7 +66,6 @@ mpaned_scroll_to_end_callback (MyFMMultiPaned *mpaned, gpointer pane_scroll)
                            TRUE, &return_val);
 }
 
-/* function for opening directories */
 static void
 myfm_window_open_dir_async (MyFMWindow *self, MyFMFile *dir,
                                         gint dirview_index)
@@ -83,7 +81,7 @@ myfm_window_open_dir_async (MyFMWindow *self, MyFMFile *dir,
     myfm_directory_view_set_file_sort_criteria (dirview, MYFM_SORT_NAME_A_TO_Z);
     myfm_directory_view_fill_store_async (dirview);
 
-    /* "promise" to show our directory view once it has been filled */
+    /* connect callback to show our directory view once it has been filled */
     g_signal_connect (dirview, "filled", G_CALLBACK (gtk_widget_show), NULL);
 
     /* remove unused directory views from our ordered directory view list (truncate it) */
@@ -109,7 +107,7 @@ myfm_window_open_dir_async (MyFMWindow *self, MyFMFile *dir,
     gtk_widget_show (GTK_WIDGET (dirview_scroll));
 }
 
-/* function for opening any file that is not a directory */
+/* for opening any file that is not a directory */
 static void
 myfm_window_open_other (MyFMWindow *self, MyFMFile *file)
 {
@@ -233,8 +231,8 @@ myfm_window_constructed (GObject *object)
     self = MYFM_WINDOW (object);
 
     gtk_window_set_default_size (GTK_WINDOW (self),
-                                 self->default_width,
-                                 self->default_height);
+                                 default_width,
+                                 default_height);
     /* hide scrollbar */
     /* TODO: make configurable */
     gtk_scrolled_window_set_policy (self->pane_scroll,
@@ -262,8 +260,6 @@ myfm_window_constructed (GObject *object)
 static void
 myfm_window_init (MyFMWindow *self)
 {
-    self->default_height = 550;
-    self->default_width = 890;
     self->directory_views = NULL;
     self->mpaned = myfm_multi_paned_new ();
     self->pane_scroll = GTK_SCROLLED_WINDOW (gtk_scrolled_window_new (NULL, NULL));

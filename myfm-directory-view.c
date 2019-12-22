@@ -251,9 +251,13 @@ static void
 myfm_directory_view_file_to_store_callback (MyFMFile *myfm_file,
                                             gpointer self, GError *error)
 {
-    if (error)
+    if (error) {
+        /* NOTE: unref only in case of
+         * G_IO_ERROR_NOT_FOUND? or for all errors? */
+        myfm_file_unref (myfm_file);
         g_error_free (error);
-        /* NOTE: we don't do any special error handling here */
+        return;
+    }
 
     GtkTreeIter iter;
     GtkListStore *store;
@@ -400,13 +404,11 @@ sort_by_date_func (GtkTreeModel *sortable, GtkTreeIter *a,
     gtk_tree_model_get (sortable, a, 0, &file_a, -1);
     gtk_tree_model_get (sortable, b, 0, &file_b, -1);
 
-    if (file_a && file_b) { /* sometimes files are NULL when func is called */
+    if (file_a && file_b) /* sometimes files are NULL when func is called */
         return g_date_time_compare (myfm_file_get_modification_time (file_b),
                                     myfm_file_get_modification_time (file_a));
-    }
-    else {
+    else
         return 0;
-    }
 }
 
 static gint
@@ -563,18 +565,21 @@ myfm_directory_view_setup_files_column (MyFMDirectoryView *self)
     renderer = gtk_cell_renderer_pixbuf_new ();
     gtk_tree_view_column_pack_start (col, renderer, FALSE);
     gtk_tree_view_column_set_attributes (col, renderer, NULL);
-    gtk_tree_view_column_set_cell_data_func (col, renderer, myfm_file_icon_data_func,
+    gtk_tree_view_column_set_cell_data_func (col, renderer,
+                                             myfm_file_icon_data_func,
                                              NULL, NULL);
 
     renderer = gtk_cell_renderer_text_new ();
     gtk_cell_renderer_set_padding (renderer, 4, 1);
     gtk_tree_view_column_pack_start (col, renderer, TRUE);
     gtk_tree_view_column_set_attributes (col, renderer, NULL);
-    gtk_tree_view_column_set_cell_data_func (col, renderer, myfm_file_name_data_func,
+    gtk_tree_view_column_set_cell_data_func (col, renderer,
+                                             myfm_file_name_data_func,
                                              NULL, NULL);
     g_object_set_data (G_OBJECT (col), "renderer", renderer);
     g_signal_connect (GTK_CELL_RENDERER_TEXT (renderer), "edited",
-                      G_CALLBACK (myfm_directory_view_on_cell_edited), self);
+                      G_CALLBACK (myfm_directory_view_on_cell_edited),
+                      self);
 
     gtk_tree_view_column_set_resizable (col, TRUE);
     gtk_tree_view_append_column (GTK_TREE_VIEW (self), col);
@@ -617,10 +622,10 @@ myfm_directory_view_refresh_files_async (MyFMDirectoryView *self)
  *  ENUMERATOR CALLBACKS START
  * ------------------------------------------------------------------------------------------ */
 /* TODO: investigate lowering this */
-static gint n_files = 32; /* number of files to request per g_file_enumerator iteration */
+static const gint n_files = 32; /* number of files to request per g_file_enumerator iteration */
 
 /* https://stackoverflow.com/questions/35036909/c-glib-gio-how-to-list-files-asynchronously
- * function calls itself until all files have been listed */
+ * function calls itself until all files have been added to store */
 static void
 myfm_directory_view_next_files_callback (GObject *file_enumerator, GAsyncResult *result,
                                          gpointer self)
@@ -731,7 +736,6 @@ myfm_directory_view_enum_finished_callback (GObject *directory, GAsyncResult *re
 void
 myfm_directory_view_fill_store_async (MyFMDirectoryView *self)
 {
-    /* TODO: query only needed file info */
     g_file_enumerate_children_async (myfm_file_get_g_file (self->directory),
                                      MYFM_FILE_QUERY_ATTRIBUTES,
                                      G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS,

@@ -1,5 +1,5 @@
 /*
- * Created by f35 on 03.13.19.
+ * Created by f35 on 03.12.19.
 */
 
 #ifndef __MYFM_UTILS_H
@@ -9,7 +9,14 @@
 
 #include "myfm-window.h"
 
-void       myfm_utils_popup_error_dialog (MyFMWindow *parent, char *format_msg, ...);
-GtkWidget *myfm_utils_new_menu_item      (const gchar *label, guint keyval, GdkModifierType accel_mods);
+/* FIXME: too vaguely named */
+typedef void (*ForEachFunc) (GFile *, GFileInfo *,
+                             gboolean, GError *,
+                             gpointer);
+
+void      myfm_utils_popup_error_dialog (MyFMWindow *parent, char *format_msg, ...);
+GtkWidget *myfm_utils_new_menu_item     (const gchar *label, guint keyval, GdkModifierType accel_mods);
+void      myfm_utils_for_each_child     (GFile *dir, const gchar *attributes, GCancellable *cancellable,
+                                         gint io_priority, ForEachFunc func, gpointer user_data);
 
 #endif /* __MYFM_UTILS_H */
