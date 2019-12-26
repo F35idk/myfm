@@ -18,16 +18,18 @@
 #define MYFM_FILE_QUERY_ATTRIBUTES "standard::display-name,standard::icon,"\
                                    "standard::content-type,standard::size,"\
                                    "standard::is-symlink,standard::is-hidden,"\
-                                   "time::modified"
+                                   "standard::type,time::modified"
 
 struct MyFMFilePrivate;
-typedef struct MyFMFile {
+typedef struct {
     struct MyFMFilePrivate *priv;
 } MyFMFile;
 
-typedef void (*MyFMFileCallback)(MyFMFile *, gpointer, GError *);
+/*                                file,   old g_file, error,    user_data */
+typedef void (*MyFMFileUpdateCallback)(MyFMFile *, GFile *, GError *, gpointer);
 
 GFile      *myfm_file_get_g_file                (MyFMFile *self);
+void       myfm_file_set_g_file                 (MyFMFile *self, GFile *g_file);
 GFileType  myfm_file_get_filetype               (MyFMFile *self);
 GType      myfm_file_get_type                   (void);
 GIcon      *myfm_file_get_icon                  (MyFMFile *self);
@@ -37,15 +39,17 @@ gboolean   myfm_file_is_open                    (MyFMFile *self);
 void       myfm_file_set_is_open                (MyFMFile *self, gboolean is_open);
 const char *myfm_file_get_display_name          (MyFMFile *self);
 const char *myfm_file_get_content_type          (MyFMFile *self);
-void       myfm_file_from_g_file_async          (GFile *g_file, MyFMFileCallback callback, gpointer user_data);
+void       myfm_file_from_g_file_async          (GFile *g_file, MyFMFileUpdateCallback callback, gpointer user_data);
 void       myfm_file_update_async               (MyFMFile *self, GFile *new_g_file,
-                                                 MyFMFileCallback callback, gpointer user_data);
+                                                 MyFMFileUpdateCallback callback, gpointer user_data);
 void       myfm_file_set_display_name_async     (MyFMFile *self, char *display_name,
-                                                 MyFMFileCallback callback, gpointer user_data);
+                                                 MyFMFileUpdateCallback callback, gpointer user_data);
+void       myfm_file_connect_update_callback    (MyFMFile *self, MyFMFileUpdateCallback cb, gpointer data);
 void       myfm_file_unref                      (MyFMFile *self);
 MyFMFile   *myfm_file_ref                       (MyFMFile *self); /* mustn't be void to fit glib boxed api */
 MyFMFile   *myfm_file_new_with_info             (GFile *g_file, GFileInfo *info);
 MyFMFile   *myfm_file_from_path                 (const char *path);
 MyFMFile   *myfm_file_from_g_file               (GFile *g_file);
+MyFMFile   *myfm_file_new_empty                 (void);
 
 #endif /* __MYFM_FILE_H */

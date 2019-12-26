@@ -120,8 +120,9 @@ myfm_directory_view_update_file_sorting (MyFMDirectoryView *self)
 
 /* currently just used for when a file has been renamed */
 static void
-myfm_directory_view_file_update_callback (MyFMFile *myfm_file, gpointer self,
-                                          GError *error)
+myfm_directory_view_file_update_callback (MyFMFile *myfm_file,
+                                          GFile *old_g_file,
+                                          GError *error, gpointer self)
 {
     if (error)
         g_error_free (error);
@@ -248,8 +249,8 @@ myfm_directory_view_on_external_move_out (MyFMDirectoryView *self,
 }
 
 static void
-myfm_directory_view_file_to_store_callback (MyFMFile *myfm_file,
-                                            gpointer self, GError *error)
+myfm_directory_view_file_to_store_callback (MyFMFile *myfm_file, GFile *old_g_file,
+                                            GError *error, gpointer self)
 {
     if (error) {
         /* NOTE: unref only in case of

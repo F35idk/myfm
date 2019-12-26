@@ -7,6 +7,7 @@
 #include "myfm-window.h"
 #include "myfm-directory-view.h"
 #include "myfm-utils.h"
+#include "myfm-file-operations.h"
 #include "myfm-directory-menu.h"
 #define G_LOG_DOMAIN "myfm-directory-menu"
 
@@ -16,6 +17,48 @@ struct _MyFMDirectoryMenu {
 };
 
 G_DEFINE_TYPE (MyFMDirectoryMenu, myfm_directory_menu, GTK_TYPE_MENU)
+
+static MyFMWindow *
+myfm_directory_menu_get_window (MyFMDirectoryMenu *self)
+{
+    return MYFM_WINDOW (gtk_widget_get_toplevel (GTK_WIDGET (self->dirview)));
+}
+
+static void
+myfm_directory_menu_on_paste_activate (GtkMenuItem *item,
+                                       gpointer self)
+{
+    GtkApplication *app;
+    MyFMClipBoard *cboard;
+    MyFMWindow *win;
+    MyFMFile *dest;
+
+
+    win = myfm_directory_menu_get_window (self);
+    app = gtk_window_get_application (GTK_WINDOW (win));
+    cboard = myfm_application_get_file_clipboard (MYFM_APPLICATION (app));
+    dest = myfm_directory_view_get_directory (MYFM_DIRECTORY_MENU (self)->dirview);
+
+    myfm_clipboard_paste (cboard, dest, GTK_WINDOW (win));
+}
+
+static void
+myfm_directory_menu_on_alt_paste_activate (GtkMenu *item,
+                                           gpointer self)
+{
+    GtkApplication *app;
+    MyFMClipBoard *cboard;
+    MyFMWindow *win;
+    MyFMFile *dest;
+
+
+    win = myfm_directory_menu_get_window (self);
+    app = gtk_window_get_application (GTK_WINDOW (win));
+    cboard = myfm_application_get_file_clipboard (MYFM_APPLICATION (app));
+    dest = myfm_directory_view_get_directory (MYFM_DIRECTORY_MENU (self)->dirview);
+
+    myfm_clipboard_paste (cboard, dest, GTK_WINDOW (win));
+}
 
 static void
 on_sort_by_size_reverse_activate (GtkMenuItem *item, gpointer dirview)
@@ -46,6 +89,26 @@ static void
 on_sort_by_date_activate (GtkMenuItem *item, gpointer dirview)
 {
     myfm_directory_view_set_file_sort_criteria (dirview, MYFM_SORT_NEWLY_EDITED_FIRST);
+}
+
+/* terrible naming. sets up the submenu for the "new" button */
+static GtkWidget *
+new_submenu_for_new (void)
+{
+    GtkWidget *submenu;
+    GtkWidget *new_file;
+    GtkWidget *new_directory;
+
+    submenu = gtk_menu_new ();
+    new_directory = myfm_utils_new_menu_item ("Directory", 0, 0);
+    new_file = myfm_utils_new_menu_item ("Empty File", 0, 0);
+
+    gtk_menu_shell_append (GTK_MENU_SHELL (submenu), new_directory);
+    gtk_menu_shell_append (GTK_MENU_SHELL (submenu), new_file);
+    gtk_widget_show (new_directory);
+    gtk_widget_show (new_file);
+
+    return submenu;
 }
 
 static void
@@ -87,8 +150,40 @@ myfm_directory_menu_new_submenu_for_sort (MyFMDirectoryMenu *self)
 static void
 myfm_directory_menu_fill (MyFMDirectoryMenu *self)
 {
+    GtkWindow *win;
+    MyFMApplication *app;
+    GtkWidget *new_item;
+    GtkWidget *new_submenu;
+    GtkWidget *paste_item;
+    GtkWidget *alt_paste_item;
     GtkWidget *sort_item;
     GtkWidget *sort_submenu;
+
+    win = GTK_WINDOW (myfm_directory_menu_get_window (self));
+    app = MYFM_APPLICATION (gtk_window_get_application (win));
+
+    new_item = myfm_utils_new_menu_item ("New...", 0, 0);
+    new_submenu = new_submenu_for_new ();
+    gtk_menu_item_set_submenu (GTK_MENU_ITEM (new_item), new_submenu);
+    gtk_menu_shell_append (GTK_MENU_SHELL (self), new_item);
+    gtk_widget_show (new_item);
+
+    paste_item = myfm_utils_new_menu_item ("Paste", 0, 0);
+    gtk_menu_shell_append (GTK_MENU_SHELL (self), paste_item);
+    if (myfm_application_copy_in_progress (app))
+        gtk_widget_set_sensitive (paste_item, FALSE);
+    gtk_widget_show (paste_item);
+    g_signal_connect (GTK_MENU_ITEM (paste_item), "activate",
+                      myfm_directory_menu_on_paste_activate, self);
+
+    alt_paste_item = myfm_utils_new_menu_item ("Paste and overwrite",
+                                               0, 0);
+    gtk_menu_shell_append (GTK_MENU_SHELL (self), alt_paste_item);
+    if (myfm_application_copy_in_progress (app))
+        gtk_widget_set_sensitive (alt_paste_item, FALSE);
+    gtk_widget_show (alt_paste_item);
+    g_signal_connect (GTK_MENU_ITEM (alt_paste_item), "activate",
+                      myfm_directory_menu_on_alt_paste_activate, self);
 
     sort_item = myfm_utils_new_menu_item ("Sort files by...", 0, 0);
     sort_submenu = myfm_directory_menu_new_submenu_for_sort (self);

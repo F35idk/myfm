@@ -7,14 +7,16 @@
 
 #include "myfm-application.h"
 #include "myfm-window.h"
+#include "myfm-clipboard.h"
 #include "myfm-file.h"
 #define G_LOG_DOMAIN "myfm-application"
 
 struct _MyFMApplication {
     GtkApplication parent_instance;
     GtkIconSize icon_size; /* TODO: make configurable */
-
+    /* only one copy operation is allowed at once */
     gboolean copy_in_progress;
+    MyFMClipBoard *file_clipboard;
 };
 
 G_DEFINE_TYPE (MyFMApplication, myfm_application, GTK_TYPE_APPLICATION)
@@ -36,6 +38,12 @@ myfm_application_set_copy_in_progress (MyFMApplication *self,
                                        gboolean in_progress)
 {
     self->copy_in_progress = in_progress;
+}
+
+MyFMClipBoard *
+myfm_application_get_file_clipboard (MyFMApplication *self)
+{
+    return self->file_clipboard;
 }
 
 /* application launched with no args */
@@ -63,7 +71,7 @@ myfm_application_open (GApplication *app, GFile **files,
     for (int i = 0; i < n_files; i++) {
         MyFMWindow *win = myfm_window_new (MYFM_APPLICATION (app));
         /* normally we would ref the g_files here, since they're
-         * freed when this function exits. but myfm_file_from_g_file ()
+         * freed when myfm_app_open exits. but myfm_file_from_g_file ()
          * takes care of that for us, so there's no need */
         MyFMFile *myfm_file = myfm_file_from_g_file (files[i]);
         myfm_window_open_file_async (win, myfm_file, -1);
@@ -75,7 +83,6 @@ myfm_application_open (GApplication *app, GFile **files,
 static void
 myfm_application_startup (GApplication *app)
 {
-    /* chaining up */
     G_APPLICATION_CLASS (myfm_application_parent_class)->startup (app);
 
     g_set_application_name ("myfm");
@@ -84,7 +91,11 @@ myfm_application_startup (GApplication *app)
 static void
 myfm_application_finalize (GObject *object)
 {
-    /* chaining up */
+    MyFMApplication *self;
+
+    self = MYFM_APPLICATION (object);
+
+    myfm_clipboard_free (self->file_clipboard);
     G_OBJECT_CLASS (myfm_application_parent_class)->finalize (object);
 }
 
@@ -97,6 +108,7 @@ myfm_application_init (MyFMApplication *self)
      * gtk_icon_theme when this is needed in the future */
     self->icon_size = gtk_icon_size_register ("default_icon_size", 20, 20);
     self->copy_in_progress = FALSE;
+    self->file_clipboard = myfm_clipboard_new ();
 }
 
 static void

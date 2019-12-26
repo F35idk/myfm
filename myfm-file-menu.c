@@ -52,11 +52,29 @@ myfm_file_menu_on_item_activate (GtkMenuItem *item,
                                                    self->file);
         g_debug ("rename");
     }
+    else if (!strcmp (label, "Cut")) {
+        GtkApplication *app;
+        MyFMClipBoard *cboard;
+
+        app = gtk_window_get_application (GTK_WINDOW (myfm_file_menu_get_window (self)));
+        cboard = myfm_application_get_file_clipboard (MYFM_APPLICATION (app));
+
+        myfm_clipboard_add_to_cut (cboard, &self->file, 1);
+    }
+    else if (!strcmp (label, "Copy")) {
+        GtkApplication *app;
+        MyFMClipBoard *cboard;
+
+        app = gtk_window_get_application (GTK_WINDOW (myfm_file_menu_get_window (self)));
+        cboard = myfm_application_get_file_clipboard (MYFM_APPLICATION (app));
+
+        myfm_clipboard_add_to_copied (cboard, &self->file, 1);
+    }
     else if (!strcmp (label, "Open in New Window")) {
         myfm_file_operations_copy_async (self->file,
                                          "/home/f35/Documents/misc/test/copy-to2/",
                                          myfm_file_menu_get_window (self),
-                                         FALSE);
+                                         FALSE, NULL, NULL, NULL, NULL);
     }
 }
 

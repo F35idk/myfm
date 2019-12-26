@@ -51,7 +51,7 @@ myfm_utils_new_menu_item (const gchar *label, guint keyval,
 }
 
 struct callback_data {
-    ForEachFunc user_callback;
+    GFileForEachFunc user_callback;
     gpointer user_data;
     GFile *dir;
     int io_priority;
@@ -149,11 +149,10 @@ myfm_utils_enum_finished_callback (GObject *dir, GAsyncResult *result,
 void
 myfm_utils_for_each_child (GFile *dir, const gchar *attributes,
                            GCancellable *cancellable, gint io_priority,
-                           ForEachFunc func, gpointer user_data)
+                           GFileForEachFunc func, gpointer user_data)
 {
     struct callback_data *cb_data = malloc (sizeof (struct callback_data));
     cb_data->user_callback = func;
-    // cb_data->dir = dir;
     cb_data->user_data = user_data;
     cb_data->io_priority = io_priority;
     cb_data->dir = dir;
