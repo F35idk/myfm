@@ -7,7 +7,6 @@
 #include "myfm-window.h"
 #include "myfm-directory-view.h"
 #include "myfm-utils.h"
-#include "myfm-file-operations.h"
 #include "myfm-copy-operation.h"
 #include "myfm-file-menu.h"
 #define G_LOG_DOMAIN "myfm-file-menu"
@@ -83,6 +82,7 @@ myfm_file_menu_on_item_activate (GtkMenuItem *item,
         myfm_copy_operation_start_async (&self->file, 1, copyto2,
                                          GTK_WINDOW (myfm_file_menu_get_window (self)),
                                          NULL, NULL);
+        myfm_file_unref (copyto2);
     }
 }
 
@@ -106,9 +106,9 @@ myfm_file_menu_on_open_with_app (GtkMenuItem *item,
     g_app_info_launch (app_info, g_file_list, NULL, &error);
 
     if (error) {
-        myfm_utils_popup_error_dialog (myfm_file_menu_get_window (self), "error \
-                                       in myfm_window when opening file(s) with \
-                                       '%s': %s \n",
+        myfm_utils_popup_error_dialog (GTK_WINDOW (myfm_file_menu_get_window (self)),
+                                       "error in myfm_window when opening file(s)"
+                                       "with '%s': %s \n",
                                        g_app_info_get_display_name (app_info),
                                        error->message);
         g_critical ("error in myfm_file_menu when opening file(s) with '%s': %s \n",
@@ -180,7 +180,6 @@ myfm_file_menu_on_open_with_other (GtkMenuItem *item,
                                    gpointer myfm_file_menu)
 {
     GtkWidget *chooser_dialog;
-    GtkWidget *chooser_widget;
     MyFMFileMenu *self;
     GtkWindow *parent;
 
@@ -188,7 +187,6 @@ myfm_file_menu_on_open_with_other (GtkMenuItem *item,
     parent = GTK_WINDOW (myfm_file_menu_get_window (self));
     chooser_dialog = gtk_app_chooser_dialog_new (parent, GTK_DIALOG_MODAL,
                                           myfm_file_get_g_file (self->file));
-    chooser_widget = gtk_app_chooser_dialog_get_widget (GTK_APP_CHOOSER_DIALOG (chooser_dialog));
     g_signal_connect (GTK_DIALOG (chooser_dialog), "response",
                       G_CALLBACK (on_app_chooser_response), self);
 

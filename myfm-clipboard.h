@@ -22,7 +22,6 @@ MyFMClipBoard *myfm_clipboard_copy         (MyFMClipBoard *self);
 MyFMClipBoard *myfm_clipboard_new          (void);
 void          myfm_clipboard_add_to_copied (MyFMClipBoard *self, MyFMFile **files, gint n_files);
 void          myfm_clipboard_add_to_cut    (MyFMClipBoard *self, MyFMFile **files, gint n_files);
-void          myfm_clipboard_paste         (MyFMClipBoard *self, MyFMFile *dest, GtkWindow *active_win);
 gboolean      myfm_clipboard_is_empty      (MyFMClipBoard *self);
 
 #endif /* __MYFM_CLIPBOARD_H */

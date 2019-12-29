@@ -10,7 +10,7 @@
 #define G_LOG_DOMAIN "myfm-utils"
 
 void
-myfm_utils_popup_error_dialog (MyFMWindow *parent, char *format_msg, ...)
+myfm_utils_popup_error_dialog (GtkWindow *parent, char *format_msg, ...)
 {
     va_list va;
     va_list va_cp;
@@ -25,7 +25,7 @@ myfm_utils_popup_error_dialog (MyFMWindow *parent, char *format_msg, ...)
     vsprintf (new, format_msg, va);
     va_end (va);
 
-    error_dialog = gtk_message_dialog_new (GTK_WINDOW (parent), GTK_DIALOG_MODAL,
+    error_dialog = gtk_message_dialog_new (parent, GTK_DIALOG_MODAL,
                                            GTK_MESSAGE_ERROR, GTK_BUTTONS_CLOSE,
                                            "%s", new);
     gtk_window_set_title (GTK_WINDOW (error_dialog), "Error");

@@ -8,9 +8,9 @@
 #include "myfm-copy-operation.h"
 #define G_LOG_DOMAIN "myfm-copy-operation"
 
-static GCancellable *cp_canceller = NULL;
-static gint io_pr = G_PRIORITY_LOW; /* FIXME: default? */
 static GtkWindow *win = NULL;
+static GCancellable *cp_canceller = NULL;
+static gpointer user_data = NULL;
 
 /* flags checked during copy operation
  * (set when handling error responses) */
@@ -18,6 +18,11 @@ static gboolean ignore_std_errs = FALSE;
 static gboolean ignore_merges = FALSE;
 static gboolean make_copy_all = FALSE;
 static gboolean merge_all = FALSE;
+
+typedef enum {
+    ERROR_TYPE_MERGE,
+    ERROR_TYPE_STD, /* currently any error that isn't a merge conflict */
+} ErrorType;
 
 typedef enum {
     ERROR_RESPONSE_NONE,
@@ -32,11 +37,6 @@ typedef enum {
     ERROR_RESPONSE_MERGE_ALL,
 } ErrorResponse;
 
-typedef enum {
-    ERROR_TYPE_MERGE,
-    ERROR_TYPE_STD, /* currently just any error that isn't a merge conflict */
-} ErrorType;
-
 static void
 on_error_dialog_response (GtkDialog *dialog, gint response_id,
                           gpointer _data)
@@ -50,7 +50,7 @@ on_error_dialog_response (GtkDialog *dialog, gint response_id,
 
     data = _data;
     apply_all = data[5];
-    type = (gint) data[2];
+    type = GPOINTER_TO_INT (data[2]);
     mutex_ptr = data[4];
     cond_ptr = data[3];
 
@@ -109,20 +109,23 @@ popup_error_main_ctx (gpointer _data)
     gchar *primary;
     GtkWidget *msg_area;
     GtkWidget *check;
+    gchar *check_label;
     gchar *msg;
     gchar *title;
 
     data = _data;
     msg = data[1];
-    type = (gint) data[2];
+    type = GPOINTER_TO_INT (data[2]);
 
     if (type == ERROR_TYPE_MERGE) {
         primary = "Replace file?";
         title = "File Conflict";
+        check_label = "Apply this action to all file conflicts";
     }
     else {
         primary = "There was an error during the copy operation.";
         title = "File Copy Error";
+        check_label = "Apply this action to all errors";
     }
 
     error_dialog = gtk_message_dialog_new (GTK_WINDOW (win), GTK_DIALOG_MODAL,
@@ -141,7 +144,7 @@ popup_error_main_ctx (gpointer _data)
                                 2, NULL);
 
     msg_area = gtk_message_dialog_get_message_area (GTK_MESSAGE_DIALOG (error_dialog));
-    check = gtk_check_button_new_with_label ("Apply to all files");
+    check = gtk_check_button_new_with_label (check_label);
     gtk_box_pack_end (GTK_BOX (msg_area), check, FALSE, TRUE, 0);
     gtk_widget_show (check);
 
@@ -182,26 +185,46 @@ run_error_dialog (ErrorType type, const gchar *format_msg, ...)
     g_main_context_invoke (NULL, popup_error_main_ctx, data);
 
     /* wait on response from error dialog in main thread */
-    while ((gint) data[0] == ERROR_RESPONSE_NONE)
+    while (GPOINTER_TO_INT (data[0]) == ERROR_RESPONSE_NONE)
         g_cond_wait (&cond, &mutex);
 
     g_mutex_unlock (&mutex);
-    return (gint) data[0];
+    return GPOINTER_TO_INT (data[0]);
+}
+
+static void
+handle_std_error (ErrorResponse response)
+{
+    switch (response) {
+        default :
+            break;
+        case ERROR_RESPONSE_SKIP_STD_ALL :
+            ignore_std_errs = TRUE;
+            break;
+        case ERROR_RESPONSE_CANCEL :
+            ignore_std_errs = TRUE;
+            ignore_merges = TRUE;
+            break;
+    }
 }
 
 /* forward (backward?) declarations for retry_copy_no_merge () */
-static void copy_file_single (GFile *src, GFile *dest, GCancellable *cancellable,
-                              gboolean merge_once, gboolean make_copy_once);
-static void copy_dir_recursive (GFile *src, GFile *dest, GCancellable *cancellable,
-                                gboolean merge_once, gboolean make_copy_once);
+static void copy_file_single (GFile *src, GFile *dest,
+                              gboolean merge_once,
+                              gboolean make_copy_once);
+static void copy_dir_recursive (GFile *src, GFile *dest,
+                                gboolean merge_once,
+                                gboolean make_copy_once);
 
-/* appends " (copy)" to end of
- * dest file before copying */
+/* appends " (copy)" to end of  dest
+ * file before copying. unrefs 'src'
+ * (through calls to copy_file_single
+ * and copy_dir_recursive), so make
+ * sure to ref this before calling */
 static void
 retry_copy_no_merge (GFile *src,
                      GFile *dest,
-                     gboolean is_dir,
-                     GCancellable *cancellable)
+                     gboolean is_dir)
 {
     gchar *old_path;
     gchar *new_path;
@@ -215,16 +238,15 @@ retry_copy_no_merge (GFile *src,
 
     if (is_dir)
         copy_dir_recursive (src, new_dest,
-                            cancellable, FALSE, TRUE);
+                            FALSE, TRUE);
     else
         copy_file_single (src, new_dest,
-                          cancellable, FALSE, TRUE);
+                          FALSE, TRUE);
 }
 
 static void
 copy_file_single (GFile *src,
                   GFile *dest,
-                  GCancellable *cancellable,
                   gboolean merge_once,
                   gboolean make_copy_once)
 {
@@ -235,7 +257,7 @@ copy_file_single (GFile *src,
         /* copy w/ overwrite */
         g_file_copy (src, dest,
                      G_FILE_COPY_NOFOLLOW_SYMLINKS | G_FILE_COPY_OVERWRITE,
-                     cancellable, NULL, NULL, &error);
+                     cp_canceller, NULL, NULL, &error);
 
         if (error) {
             g_critical ("Error in myfm_copy_operation function "
@@ -243,28 +265,20 @@ copy_file_single (GFile *src,
 
             if (!ignore_std_errs) {
                 error_response = run_error_dialog (ERROR_TYPE_STD,
-                                                   "Error while "
-                                                   "copying file: %s");
-                switch (error_response) {
-                    default :
-                        break;
-                    case ERROR_RESPONSE_SKIP_STD_ALL :
-                        ignore_std_errs = TRUE;
-                        break;
-                    case ERROR_RESPONSE_CANCEL :
-                        /* FIXME: handle */
-                        break;
-                }
+                                                   "%s", error->message);
+                handle_std_error (error_response);
             }
             g_error_free (error);
-            return; /* FIXME: should ret? */
+            g_object_unref (dest);
+            g_object_unref (src);
+            return;
         }
     }
     else {
         /* copy w/o overwrite */
         g_file_copy (src, dest,
                      G_FILE_COPY_NOFOLLOW_SYMLINKS,
-                     cancellable, NULL, NULL, &error);
+                     cp_canceller, NULL, NULL, &error);
 
         if (error) {
             g_critical ("Error in myfm_copy_operation function "
@@ -281,16 +295,17 @@ copy_file_single (GFile *src,
                             default:
                                 break;
                             case ERROR_RESPONSE_CANCEL:
-                                /* FIXME: handle */
+                                ignore_std_errs = TRUE;
+                                ignore_merges = TRUE;
                                 break;
                             case ERROR_RESPONSE_MAKE_COPY_ONCE:
-                                retry_copy_no_merge (src, dest, FALSE,
-                                                     cancellable);
+                                g_object_ref (src);
+                                retry_copy_no_merge (src, dest, FALSE);
                                 break;
                             case ERROR_RESPONSE_MAKE_COPY_ALL:
                                 make_copy_all = TRUE;
-                                retry_copy_no_merge (src, dest, FALSE,
-                                                      cancellable);
+                                g_object_ref (src);
+                                retry_copy_no_merge (src, dest, FALSE);
                                 break;
                             case ERROR_RESPONSE_SKIP_MERGE_ONCE:
                                 break;
@@ -299,8 +314,7 @@ copy_file_single (GFile *src,
                                 break;
                             case ERROR_RESPONSE_MERGE_ONCE:
                                 /* retry with merge_once = TRUE */
-                                copy_file_single (src, dest, cancellable,
-                                                  TRUE, FALSE);
+                                copy_file_single (src, dest, TRUE, FALSE);
                                 break;
                             case ERROR_RESPONSE_MERGE_ALL:
                                 merge_all = TRUE;
@@ -308,7 +322,8 @@ copy_file_single (GFile *src,
                         }
                     }
                     else if (make_copy_all || make_copy_once) {
-                        retry_copy_no_merge (src, dest, FALSE, cancellable);
+                        g_object_ref (src);
+                        retry_copy_no_merge (src, dest, FALSE);
                     }
                 }
             }
@@ -316,28 +331,22 @@ copy_file_single (GFile *src,
                 if (!ignore_std_errs) {
                     error_response = run_error_dialog (ERROR_TYPE_STD,
                                                        "%s", error->message);
-                    switch (error_response) {
-                        default :
-                            break;
-                        case ERROR_RESPONSE_SKIP_STD_ALL :
-                            ignore_std_errs = TRUE;
-                            break;
-                        case ERROR_RESPONSE_CANCEL :
-                            /* FIXME: handle */
-                            break;
-                    }
+                    handle_std_error (error_response);
                 }
             }
             g_error_free (error);
-            return; /* FIXME: should ret? */
+            g_object_unref (dest);
+            g_object_unref (src);
+            return;
         }
     }
+    g_object_unref (dest);
+    g_object_unref (src);
 }
 
 static void
 copy_dir_recursive (GFile *src,
                     GFile *dest,
-                    GCancellable *cancellable,
                     gboolean merge_once,
                     gboolean make_copy_once)
 {
@@ -345,7 +354,7 @@ copy_dir_recursive (GFile *src,
     GError *error = NULL;
     ErrorResponse error_response;
   
-    g_file_make_directory (dest, cancellable, &error);
+    g_file_make_directory (dest, cp_canceller, &error);
 
     if (error) {
         g_critical ("Error in myfm_copy_operation function "
@@ -361,16 +370,17 @@ copy_dir_recursive (GFile *src,
                             default:
                                 break;
                             case ERROR_RESPONSE_CANCEL:
-                                /* FIXME: handle */
+                                ignore_std_errs = TRUE;
+                                ignore_merges = TRUE;
                                 break;
                             case ERROR_RESPONSE_MAKE_COPY_ONCE:
-                                retry_copy_no_merge (src, dest, TRUE,
-                                                     cancellable);
+                                g_object_ref (src);
+                                retry_copy_no_merge (src, dest, TRUE);
                                 break;
                             case ERROR_RESPONSE_MAKE_COPY_ALL:
                                 make_copy_all = TRUE;
-                                retry_copy_no_merge (src, dest, TRUE,
-                                                      cancellable);
+                                g_object_ref (src);
+                                retry_copy_no_merge (src, dest, TRUE);
                                 break;
                             case ERROR_RESPONSE_SKIP_MERGE_ONCE:
                                 break;
@@ -394,24 +404,42 @@ copy_dir_recursive (GFile *src,
                     }
                 }
                 else if (make_copy_once || make_copy_all) {
-                    retry_copy_no_merge (src, dest, TRUE, cancellable);
+                    g_object_ref (src); /* ref to avoid double free */
+                    retry_copy_no_merge (src, dest, TRUE);
                 }
             }
         }
+        else {
+            if (!ignore_std_errs) {
+                error_response = run_error_dialog (ERROR_TYPE_STD, "%s",
+                                                   error->message);
+                handle_std_error (error_response);
+            }
+        }
         g_error_free (error);
+        g_object_unref (dest);
+        g_object_unref (src);
         return;
     }
 
     direnum = g_file_enumerate_children (src, MYFM_FILE_QUERY_ATTRIBUTES,
                                          G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS,
-                                         cancellable, &error);
+                                         cp_canceller, &error);
     if (error) {
-        /* TODO: POPUP */
+        g_critical ("Error in myfm_copy_operation function "
+                   "'copy_dir_recursive: %s", error->message);
+
+        error_response = run_error_dialog (ERROR_TYPE_STD, "%s",
+                                           error->message);
+        handle_std_error (error_response);
         g_error_free (error);
+        /* g_object_unref (direnum); */ /* (direnum is NULL) */
+        g_object_unref (dest);
+        g_object_unref (src);
         return;
     }
 
-    while (direnum != NULL) {
+    while (TRUE) {
         GFile *child;
         GFileInfo *child_info;
         GError *error2 = NULL;
@@ -422,10 +450,15 @@ copy_dir_recursive (GFile *src,
         GFile *new_dest;
 
         fail = !g_file_enumerator_iterate (direnum, &child_info,
-                                           &child, cancellable,
+                                           &child, cp_canceller,
                                            &error2);
         if (fail) {
-            /* TODO: popup */
+            g_critical ("Error in myfm_copy_operation function "
+                       "'copy_dir_recursive: %s", error->message);
+
+            error_response = run_error_dialog (ERROR_TYPE_STD,
+                                              "%s", error->message);
+            handle_std_error (error_response);
             g_error_free (error2);
             continue;
         }
@@ -438,6 +471,7 @@ copy_dir_recursive (GFile *src,
         dest_dir_path = g_file_get_path (dest);
         new_dest = g_file_new_build_filename (dest_dir_path,
                                               child_basename, NULL);
+        g_object_ref (child);
         g_free (child_basename);
         g_free (dest_dir_path);
 
@@ -445,12 +479,14 @@ copy_dir_recursive (GFile *src,
 
         /* recurse */
         if (child_type == G_FILE_TYPE_DIRECTORY)
-            copy_dir_recursive (child, new_dest,
-                                cancellable, FALSE, FALSE);
+            copy_dir_recursive (child, new_dest, FALSE, FALSE);
         else
-            copy_file_single (child, new_dest, cancellable,
-                              FALSE, FALSE);
+            copy_file_single (child, new_dest, FALSE, FALSE);
     }
+
+    g_object_unref (dest);
+    g_object_unref (src);
+    g_object_unref (direnum);
 }
 
 /* struct for passing g_files and
@@ -487,32 +523,58 @@ myfm_copy_operation_thread (GTask *task, gpointer src_object,
         dest = g_file_new_build_filename (dest_dir_path,
                                           src_basename,
                                           NULL);
+        g_free (src_basename);
 
         if (current.type == G_FILE_TYPE_DIRECTORY)
             copy_dir_recursive (current.g_file, dest,
-                                cancellable, FALSE, FALSE);
+                                FALSE, FALSE);
         else
             copy_file_single (current.g_file, dest,
-                              cancellable, FALSE, FALSE);
+                              FALSE, FALSE);
 
-        g_object_unref (current.g_file);
         i ++;
         current = arr[i];
     }
     g_free (dest_dir_path);
     g_free (arr);
+
+    /* reset flags/statics */
+    g_object_unref (cp_canceller);
+    cp_canceller = NULL;
+    win = NULL;
+    user_data = NULL;
+    ignore_std_errs = FALSE;
+    ignore_merges = FALSE;
+    make_copy_all = FALSE;
+    merge_all = FALSE;
+
+    g_debug ("finished");
+    return;
 }
 
 void
 myfm_copy_operation_cancel (void)
 {
+    if (cp_canceller)
+        g_cancellable_cancel (cp_canceller);
+}
 
+static void
+myfm_copy_operation_callback_wrapper (GObject *src_object,
+                                      GAsyncResult *res,
+                                      gpointer _cb)
+{
+    MyFMCopyCallback cb = _cb;
+    g_object_unref (res);
+
+    if (cb)
+        cb (user_data);
 }
 
 void
 myfm_copy_operation_start_async (MyFMFile **src_files, gint n_files,
                                  MyFMFile *dest_dir, GtkWindow *active,
-                                 GAsyncReadyCallback cb, gpointer data)
+                                 MyFMCopyCallback cb, gpointer data)
 {
     GTask *cp;
     struct file_w_type *arr; /* array to pass to our g_thread_func */
@@ -529,7 +591,7 @@ myfm_copy_operation_start_async (MyFMFile **src_files, gint n_files,
         GFileType type;
         struct file_w_type ft;
 
-        /* NOTE: we duplicate to avoid sharing memory between threads */
+        /* NOTE: we duplicate for safety */
         dup = g_file_dup (myfm_file_get_g_file (src_files[i-1]));
         type = myfm_file_get_filetype (src_files[i-1]);
         ft = (struct file_w_type) {dup, type};
@@ -540,9 +602,13 @@ myfm_copy_operation_start_async (MyFMFile **src_files, gint n_files,
 
     win = active;
     cp_canceller = g_cancellable_new ();
-    cp = g_task_new (NULL, cp_canceller, cb, data);
-    g_task_set_task_data (cp, arr, NULL); /* FIXME: needs func to kill the data */
-    // g_task_set_priority ()
+    user_data = data;
+    cp = g_task_new (NULL, cp_canceller,
+                     myfm_copy_operation_callback_wrapper,
+                     data);
+
+    g_task_set_task_data (cp, arr, NULL);
+    g_task_set_priority (cp, G_PRIORITY_DEFAULT); /* NOTE: redundant */
     g_task_run_in_thread (cp, myfm_copy_operation_thread);
 
 }

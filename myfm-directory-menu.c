@@ -7,7 +7,6 @@
 #include "myfm-window.h"
 #include "myfm-directory-view.h"
 #include "myfm-utils.h"
-#include "myfm-file-operations.h"
 #include "myfm-directory-menu.h"
 #define G_LOG_DOMAIN "myfm-directory-menu"
 
@@ -39,7 +38,7 @@ myfm_directory_menu_on_paste_activate (GtkMenuItem *item,
     cboard = myfm_application_get_file_clipboard (MYFM_APPLICATION (app));
     dest = myfm_directory_view_get_directory (MYFM_DIRECTORY_MENU (self)->dirview);
 
-    myfm_clipboard_paste (cboard, dest, GTK_WINDOW (win));
+    /* TODO implement */
 }
 
 static void
@@ -57,7 +56,7 @@ myfm_directory_menu_on_alt_paste_activate (GtkMenu *item,
     cboard = myfm_application_get_file_clipboard (MYFM_APPLICATION (app));
     dest = myfm_directory_view_get_directory (MYFM_DIRECTORY_MENU (self)->dirview);
 
-    myfm_clipboard_paste (cboard, dest, GTK_WINDOW (win));
+    /* TODO implement */
 }
 
 static void
