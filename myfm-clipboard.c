@@ -26,10 +26,10 @@ paste_cut_files_callback (gpointer dest_dir_path,
 
     if (g_hash_table_iter_next (&iter, &key, &file))  {
         if (file) {
-            myfm_file_operations_copy_async (file, dest_dir_path,
-                                             win, FALSE,
-                                             paste_cut_files_callback,
-                                             dest_dir_path, win, NULL);
+            // myfm_file_operations_copy_async (file, dest_dir_path,
+            //                                  win, FALSE,
+            //                                  paste_cut_files_callback,
+            //                                  dest_dir_path, win, NULL);
             g_hash_table_iter_remove (&iter);
         }
     }
@@ -47,10 +47,10 @@ paste_copied_files_callback (gpointer dest_dir_path,
     file = g_ptr_array_steal_index_fast (copied, 0);
 
     if (file) {
-        myfm_file_operations_copy_async (file, dest_dir_path,
-                                         MYFM_WINDOW (win),
-                                         FALSE, paste_copied_files_callback,
-                                         dest_dir_path, win, copied); /* user data */
+        // myfm_file_operations_copy_async (file, dest_dir_path,
+        //                                  MYFM_WINDOW (win),
+        //                                  FALSE, paste_copied_files_callback,
+        //                                  dest_dir_path, win, copied); /* user data */
     }
     else {
         g_free (dest_dir_path);
@@ -74,10 +74,10 @@ myfm_clipboard_paste (MyFMClipBoard *self, MyFMFile *dest_dir,
 
         if (g_hash_table_iter_next (&iter, &key, &file))  {
             if (file) {
-                myfm_file_operations_copy_async (file, dest_dir_path,
-                                                 MYFM_WINDOW (active_win),
-                                                 FALSE, paste_cut_files_callback,
-                                                 dest_dir_path, active_win, NULL); /* user data */
+                // myfm_file_operations_copy_async (file, dest_dir_path,
+                //                                  MYFM_WINDOW (active_win),
+                //                                  FALSE, paste_cut_files_callback,
+                //                                  dest_dir_path, active_win, NULL); /* user data */
                 g_hash_table_iter_remove (&iter);
             }
         }
@@ -92,11 +92,11 @@ myfm_clipboard_paste (MyFMClipBoard *self, MyFMFile *dest_dir,
         file = g_ptr_array_steal_index_fast (self->copied_files, 0);
 
         if (file) {
-            myfm_file_operations_copy_async (file, dest_dir_path,
-                                             MYFM_WINDOW (active_win),
-                                             FALSE, paste_copied_files_callback,
-                                             dest_dir_path, active_win,
-                                             self->copied_files);
+            // myfm_file_operations_copy_async (file, dest_dir_path,
+            //                                  MYFM_WINDOW (active_win),
+            //                                  FALSE, paste_copied_files_callback,
+            //                                  dest_dir_path, active_win,
+            //                                  self->copied_files);
         }
         else {
             g_free (dest_dir_path);

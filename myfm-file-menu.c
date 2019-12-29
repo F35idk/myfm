@@ -7,8 +7,9 @@
 #include "myfm-window.h"
 #include "myfm-directory-view.h"
 #include "myfm-utils.h"
-#include "myfm-file-menu.h"
 #include "myfm-file-operations.h"
+#include "myfm-copy-operation.h"
+#include "myfm-file-menu.h"
 #define G_LOG_DOMAIN "myfm-file-menu"
 
 struct _MyFMFileMenu {
@@ -71,10 +72,17 @@ myfm_file_menu_on_item_activate (GtkMenuItem *item,
         myfm_clipboard_add_to_copied (cboard, &self->file, 1);
     }
     else if (!strcmp (label, "Open in New Window")) {
-        myfm_file_operations_copy_async (self->file,
-                                         "/home/f35/Documents/misc/test/copy-to2/",
-                                         myfm_file_menu_get_window (self),
-                                         FALSE, NULL, NULL, NULL, NULL);
+        // myfm_file_operations_copy_async (self->file,
+        //                                  "/home/f35/Documents/misc/test/copy-to2/",
+        //                                  myfm_file_menu_get_window (self),
+        //                                  FALSE, NULL, NULL, NULL, NULL);
+        // whatever ();
+        MyFMFile *copyto2;
+        copyto2 = myfm_file_from_path ("/home/f35/Documents/misc/test/copy-to2/");
+
+        myfm_copy_operation_start_async (&self->file, 1, copyto2,
+                                         GTK_WINDOW (myfm_file_menu_get_window (self)),
+                                         NULL, NULL);
     }
 }
 

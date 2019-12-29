@@ -141,7 +141,7 @@ myfm_file_IO_fields_callback (GObject *g_file, GAsyncResult *res,
 
     /* decrement refcount of file when we're done */
     myfm_file_unref (self);
-    free (cb_data);
+    g_free (cb_data);
     g_object_unref (info); /* might emit a warning, info is often NULL */
 }
 
@@ -151,14 +151,7 @@ myfm_file_init_io_fields_async (MyFMFile *self, MyFMFileUpdateCallback callback,
 {
     struct callback_data *cb_data;
 
-    cb_data = malloc (sizeof (struct callback_data));
-
-    if (cb_data == NULL) {
-        g_critical ("error in myfm_file_init_io_fields_async: "
-                    "malloc returned NULL");
-        return;
-    }
-
+    cb_data = g_malloc (sizeof (struct callback_data));
     cb_data->self = self;
     cb_data->callback = callback;
     if (old_g_file) {
@@ -191,7 +184,7 @@ static void
 free_cb_data2 (gpointer cb_data, GClosure *closure)
 {
     g_debug ("freeing connected signal data");
-    free (cb_data);
+    g_free (cb_data);
 }
 
 static void
@@ -228,7 +221,7 @@ myfm_file_connect_update_callback (MyFMFile *self, MyFMFileUpdateCallback cb,
 {
     struct cb_data2 *cb_data;
 
-    cb_data = malloc (sizeof (struct cb_data2));
+    cb_data = g_malloc (sizeof (struct cb_data2));
     cb_data->cb = cb;
     cb_data->user_data = data;
 
@@ -290,21 +283,8 @@ myfm_file_new_without_io_fields (GFile *g_file)
 
     g_object_ref (g_file);
 
-    myfm_file = malloc (sizeof (MyFMFile));
-
-    if (myfm_file == NULL) {
-        g_critical ("malloc returned NULL, unable to create myfm_file");
-        g_object_unref (g_file);
-        return myfm_file;
-    }
-
-    myfm_file->priv = malloc (sizeof (struct MyFMFilePrivate));
-
-    if (myfm_file->priv == NULL) {
-        g_critical ("malloc returned NULL, unable to create myfm_file");
-        g_object_unref (g_file);
-        return myfm_file;
-    }
+    myfm_file = g_malloc (sizeof (MyFMFile));
+    myfm_file->priv = g_malloc (sizeof (struct MyFMFilePrivate));
 
     setup_signals (g_file);
 
@@ -441,7 +421,7 @@ myfm_file_set_display_name_callback (GObject *g_file, GAsyncResult *res,
 
         /* NOTE: file will be NULL here, so no unref needed */
         /* g_object_unref (new_g_file); */
-        free (cb_data);
+        g_free (cb_data);
         return;
     }
 
@@ -468,18 +448,10 @@ myfm_file_set_display_name_async (MyFMFile *self, char *display_name,
 {
     struct callback_data *cb_data;
 
-    cb_data = malloc (sizeof (struct callback_data));
-
-    if (cb_data == NULL) {
-        g_critical ("error in myfm_file_set_display_name_async: "
-                    "malloc returned NULL \n");
-        return;
-    }
-
+    cb_data = g_malloc (sizeof (struct callback_data));
     cb_data->self = self;
     cb_data->callback = callback;
     cb_data->old_g_file = myfm_file_get_g_file (self);
-    // g_object_ref (cb_data->old_g_file);
     cb_data->user_data = user_data;
 
     g_file_set_display_name_async (myfm_file_get_g_file (self),
@@ -572,8 +544,8 @@ myfm_file_free (MyFMFile *self)
         self->priv->cancellable = NULL;
     }
 
-    free (self->priv);
-    free (self);
+    g_free (self->priv);
+    g_free (self);
 }
 
 /* as of 2.58, glib provides its own refcounting api.

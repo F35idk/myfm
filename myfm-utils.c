@@ -80,7 +80,7 @@ myfm_utils_next_files_callback (GObject *file_enumerator, GAsyncResult *result,
         cb_data->user_callback (cb_data->dir, NULL,
                                 FALSE, error,
                                 cb_data->user_data);
-        free (cb_data);
+        g_free (cb_data);
         return;
     }
     else if (directory_list == NULL) {
@@ -89,7 +89,7 @@ myfm_utils_next_files_callback (GObject *file_enumerator, GAsyncResult *result,
         cb_data->user_callback (cb_data->dir, NULL,
                                 TRUE, NULL,
                                 cb_data->user_data);
-        free (cb_data);
+        g_free (cb_data);
         return;
     }
     else {
@@ -134,7 +134,7 @@ myfm_utils_enum_finished_callback (GObject *dir, GAsyncResult *result,
         cb_data->user_callback (cb_data->dir, NULL,
                                 FALSE, error,
                                 cb_data->user_data);
-        free (cb_data);
+        g_free (cb_data);
         return;
     }
     else {
@@ -151,7 +151,7 @@ myfm_utils_for_each_child (GFile *dir, const gchar *attributes,
                            GCancellable *cancellable, gint io_priority,
                            GFileForEachFunc func, gpointer user_data)
 {
-    struct callback_data *cb_data = malloc (sizeof (struct callback_data));
+    struct callback_data *cb_data = g_malloc (sizeof (struct callback_data));
     cb_data->user_callback = func;
     cb_data->user_data = user_data;
     cb_data->io_priority = io_priority;
