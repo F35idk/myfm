@@ -67,6 +67,62 @@ myfm_clipboard_add_to_cut (MyFMClipBoard *self,
     }
 }
 
+/* gets the contents of the clipboard. if the clipboard
+ * consists of cut files, these will be removed and their
+ * refcount will stay the same (ownership will be transferred
+ * from the clipboard to the caller). otherwise, the files
+ * will have their refcount increased. so, in both cases, make
+ * sure to unref the files returned from this after use */
+MyFMFile **
+myfm_clipboard_get_contents (MyFMClipBoard *self, gint *out_n_files,
+                             gboolean *out_copied)
+{
+    MyFMFile **files = NULL;
+    gint n_copied;
+    gint n_cut;
+
+    n_copied = self->copied_files->len;
+    n_cut = g_hash_table_size (self->cut_files);
+
+    if (n_copied) {
+        *out_n_files = n_copied;
+        *out_copied = TRUE;
+
+        files = malloc (sizeof (MyFMFile *) * n_copied);
+        for (int i = 0; i < n_copied; i++) {
+            files[i] = g_ptr_array_index (self->copied_files, 0);
+            myfm_file_ref (files[i]);
+        }
+    }
+    else if (n_cut) {
+        GList *file_list;
+        GList *current;
+
+        *out_n_files = n_cut;
+        *out_copied = FALSE;
+
+        file_list = g_hash_table_get_values (self->cut_files);
+        current = file_list;
+        for (int i = 0; i < n_cut; i++) {
+            if (!current)
+                break;
+
+            files[i] = current->data;
+            myfm_file_ref (files[i]);
+            current = current->next;
+        }
+
+        g_list_free (file_list);
+        g_hash_table_remove_all (self->cut_files);
+    }
+    else {
+        *out_n_files = 0;
+        *out_copied = FALSE;
+    }
+
+    return files;
+}
+
 gboolean
 myfm_clipboard_file_is_cut (MyFMClipBoard *self,
                             MyFMFile *file)

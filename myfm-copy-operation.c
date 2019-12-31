@@ -118,7 +118,7 @@ popup_error_main_ctx (gpointer _data)
     type = GPOINTER_TO_INT (data[2]);
 
     if (type == ERROR_TYPE_MERGE) {
-        primary = "Replace file?";
+        primary = "File already exists. Replace it?";
         title = "File Conflict";
         check_label = "Apply this action to all file conflicts";
     }
@@ -166,7 +166,7 @@ run_error_dialog (ErrorType type, const gchar *format_msg, ...)
     /* only one copy operation can happen at
      * once, so we can keep these vars static
      * and avoid mallocs (and frees) everywhere */
-    static gpointer data[6];
+    static gpointer data[6]; /* data to pass to our dialog */
     static GCond cond;
     static GMutex mutex;
 
@@ -503,6 +503,7 @@ myfm_copy_operation_thread (GTask *task, gpointer src_object,
 {
     struct file_w_type *arr;
     struct file_w_type current;
+    MyFMApplication *app;
     GFile *dest_dir;
     gchar *dest_dir_path;
     int i;
@@ -538,18 +539,22 @@ myfm_copy_operation_thread (GTask *task, gpointer src_object,
     g_free (dest_dir_path);
     g_free (arr);
 
+
     /* reset flags/statics */
     g_object_unref (cp_canceller);
     cp_canceller = NULL;
-    win = NULL;
     user_data = NULL;
     ignore_std_errs = FALSE;
     ignore_merges = FALSE;
     make_copy_all = FALSE;
     merge_all = FALSE;
 
+    app = MYFM_APPLICATION (gtk_window_get_application (win));
+    myfm_application_set_copy_in_progress (app, FALSE);
+    win = NULL;
+
     g_debug ("finished");
-    return;
+    return; /* no need for g_task_return_x */
 }
 
 void
@@ -579,6 +584,9 @@ myfm_copy_operation_start_async (MyFMFile **src_files, gint n_files,
     GTask *cp;
     struct file_w_type *arr; /* array to pass to our g_thread_func */
     GFile *g_dest;
+    MyFMApplication *app;
+
+    g_return_if_fail (active != NULL);
 
     arr = g_malloc (sizeof (struct file_w_type) * (n_files + 2));
     g_dest = g_file_dup (myfm_file_get_g_file (dest_dir));
@@ -603,9 +611,12 @@ myfm_copy_operation_start_async (MyFMFile **src_files, gint n_files,
     win = active;
     cp_canceller = g_cancellable_new ();
     user_data = data;
+    app = MYFM_APPLICATION (gtk_window_get_application (active));
     cp = g_task_new (NULL, cp_canceller,
                      myfm_copy_operation_callback_wrapper,
-                     data);
+                     cb);
+
+    myfm_application_set_copy_in_progress (app, TRUE);
 
     g_task_set_task_data (cp, arr, NULL);
     g_task_set_priority (cp, G_PRIORITY_DEFAULT); /* NOTE: redundant */

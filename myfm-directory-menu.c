@@ -7,6 +7,7 @@
 #include "myfm-window.h"
 #include "myfm-directory-view.h"
 #include "myfm-utils.h"
+#include "myfm-copy-operation.h"
 #include "myfm-directory-menu.h"
 #define G_LOG_DOMAIN "myfm-directory-menu"
 
@@ -24,39 +25,38 @@ myfm_directory_menu_get_window (MyFMDirectoryMenu *self)
 }
 
 static void
-myfm_directory_menu_on_paste_activate (GtkMenuItem *item,
+myfm_directory_menu_on_paste_activate (GtkMenu *item,
                                        gpointer self)
 {
     GtkApplication *app;
     MyFMClipBoard *cboard;
     MyFMWindow *win;
-    MyFMFile *dest;
-
-
-    win = myfm_directory_menu_get_window (self);
-    app = gtk_window_get_application (GTK_WINDOW (win));
-    cboard = myfm_application_get_file_clipboard (MYFM_APPLICATION (app));
-    dest = myfm_directory_view_get_directory (MYFM_DIRECTORY_MENU (self)->dirview);
-
-    /* TODO implement */
-}
-
-static void
-myfm_directory_menu_on_alt_paste_activate (GtkMenu *item,
-                                           gpointer self)
-{
-    GtkApplication *app;
-    MyFMClipBoard *cboard;
-    MyFMWindow *win;
-    MyFMFile *dest;
-
+    MyFMFile **src_files;
+    MyFMFile *dest_dir;
+    gint n_files;
+    gboolean files_copied;
 
     win = myfm_directory_menu_get_window (self);
     app = gtk_window_get_application (GTK_WINDOW (win));
     cboard = myfm_application_get_file_clipboard (MYFM_APPLICATION (app));
-    dest = myfm_directory_view_get_directory (MYFM_DIRECTORY_MENU (self)->dirview);
+    dest_dir = myfm_directory_view_get_directory (MYFM_DIRECTORY_MENU (self)->dirview);
 
-    /* TODO implement */
+    src_files = myfm_clipboard_get_contents (cboard, &n_files, &files_copied);
+
+    if (!n_files)
+        return;
+
+    if (files_copied) {
+        myfm_copy_operation_start_async (src_files, n_files, dest_dir,
+                                         GTK_WINDOW (myfm_directory_menu_get_window (self)),
+                                         NULL, NULL);
+    }
+    else { /* clipboard files are cut */
+
+    }
+
+    for (int i = 0; i < n_files; i ++)
+        myfm_file_unref (src_files[i]);
 }
 
 static void
@@ -154,7 +154,6 @@ myfm_directory_menu_fill (MyFMDirectoryMenu *self)
     GtkWidget *new_item;
     GtkWidget *new_submenu;
     GtkWidget *paste_item;
-    GtkWidget *alt_paste_item;
     GtkWidget *sort_item;
     GtkWidget *sort_submenu;
 
@@ -174,15 +173,6 @@ myfm_directory_menu_fill (MyFMDirectoryMenu *self)
     gtk_widget_show (paste_item);
     g_signal_connect (GTK_MENU_ITEM (paste_item), "activate",
                       myfm_directory_menu_on_paste_activate, self);
-
-    alt_paste_item = myfm_utils_new_menu_item ("Paste and overwrite",
-                                               0, 0);
-    gtk_menu_shell_append (GTK_MENU_SHELL (self), alt_paste_item);
-    if (myfm_application_copy_in_progress (app))
-        gtk_widget_set_sensitive (alt_paste_item, FALSE);
-    gtk_widget_show (alt_paste_item);
-    g_signal_connect (GTK_MENU_ITEM (alt_paste_item), "activate",
-                      myfm_directory_menu_on_alt_paste_activate, self);
 
     sort_item = myfm_utils_new_menu_item ("Sort files by...", 0, 0);
     sort_submenu = myfm_directory_menu_new_submenu_for_sort (self);
