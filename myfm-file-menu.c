@@ -106,7 +106,7 @@ myfm_file_menu_on_open_with_app (GtkMenuItem *item,
     g_app_info_launch (app_info, g_file_list, NULL, &error);
 
     if (error) {
-        myfm_utils_popup_error_dialog (GTK_WINDOW (myfm_file_menu_get_window (self)),
+        myfm_utils_run_error_dialog (GTK_WINDOW (myfm_file_menu_get_window (self)),
                                        "error in myfm_window when opening file(s)"
                                        "with '%s': %s \n",
                                        g_app_info_get_display_name (app_info),
@@ -139,7 +139,7 @@ on_app_chooser_item_activate (GtkAppChooserWidget *chooser_widget,
     app_info = NULL;
 
     if (error) {
-        myfm_utils_popup_error_dialog (GTK_WINDOW (chooser_dialog), "error \
+        myfm_utils_run_error_dialog (GTK_WINDOW (chooser_dialog), "error \
                                        in myfm_window when opening file(s) with \
                                        '%s': %s \n",
                                        g_app_info_get_display_name (app_info),

@@ -564,6 +564,8 @@ myfm_copy_operation_cancel (void)
         g_cancellable_cancel (cp_canceller);
 }
 
+/* TODO: pass myfm_file array
+ * to user callback through this */
 static void
 myfm_copy_operation_callback_wrapper (GObject *src_object,
                                       GAsyncResult *res,

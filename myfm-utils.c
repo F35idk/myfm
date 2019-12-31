@@ -9,30 +9,6 @@
 #include "myfm-utils.h"
 #define G_LOG_DOMAIN "myfm-utils"
 
-void
-myfm_utils_popup_error_dialog (GtkWindow *parent, char *format_msg, ...)
-{
-    va_list va;
-    va_list va_cp;
-    int len;
-    GtkWidget *error_dialog;
-
-    va_start (va, format_msg);
-    va_copy (va_cp, va);
-    len = vsnprintf (NULL, 0, format_msg, va_cp);
-    char new[len+1]; /* NOTE: VLA, ehhh */
-    new[len+1] = '\0';
-    vsprintf (new, format_msg, va);
-    va_end (va);
-
-    error_dialog = gtk_message_dialog_new (parent, GTK_DIALOG_MODAL,
-                                           GTK_MESSAGE_ERROR, GTK_BUTTONS_CLOSE,
-                                           "%s", new);
-    gtk_window_set_title (GTK_WINDOW (error_dialog), "Error");
-    gtk_dialog_run (GTK_DIALOG (error_dialog));
-    gtk_widget_destroy (error_dialog);
-}
-
 GtkWidget *
 myfm_utils_new_menu_item (const gchar *label, guint keyval,
                           GdkModifierType accel_mods)
@@ -163,4 +139,198 @@ myfm_utils_for_each_child (GFile *dir, const gchar *attributes,
                                      io_priority, cancellable,
                                      myfm_utils_enum_finished_callback,
                                      cb_data);
+}
+
+gint
+myfm_utils_run_error_dialog (GtkWindow *parent, gchar *format_msg, ...)
+{
+    va_list va;
+    va_list va_cp;
+    int len;
+    GtkWidget *error_dialog;
+
+    va_start (va, format_msg);
+    va_copy (va_cp, va);
+    len = vsnprintf (NULL, 0, format_msg, va_cp);
+    char new[len+1]; /* NOTE: VLA, ehhh */
+    new[len+1] = '\0';
+    vsprintf (new, format_msg, va);
+    va_end (va);
+
+    error_dialog = gtk_message_dialog_new (parent, GTK_DIALOG_MODAL,
+                                           GTK_MESSAGE_ERROR, GTK_BUTTONS_CLOSE,
+                                           "%s", new);
+    gtk_window_set_title (GTK_WINDOW (error_dialog), "Error");
+    gtk_dialog_run (GTK_DIALOG (error_dialog));
+    gtk_widget_destroy (error_dialog);
+
+    /* only possible response from this dialog */
+    return MYFM_DIALOG_RESPONSE_NONE;
+}
+
+struct dialog_data {
+    gchar *primary_msg;
+    gchar *secondary_msg;
+    gchar *title;
+    MyFMDialogType type;
+    MyFMDialogResponse response;
+    GCancellable *cancellable;
+    GtkWindow *win;
+    GtkWidget *check;
+    GtkButtonsType buttons;
+    GCond cond;
+    GMutex mutex;
+};
+
+static void
+on_error_dialog_response (GtkDialog *dialog, gint response_id,
+                          gpointer _data)
+{
+    struct dialog_data *data;
+    GtkToggleButton *apply_all;
+
+    data = _data;
+    apply_all = GTK_TOGGLE_BUTTON (data->check);
+
+    g_mutex_lock (&data->mutex);
+
+    switch (response_id) {
+        default :
+            if (data->type == MYFM_DIALOG_TYPE_MERGE_CONFLICT)
+                data->response = MYFM_DIALOG_RESPONSE_SKIP_MERGE_ONCE;
+            else
+                data->response = MYFM_DIALOG_RESPONSE_SKIP_ERROR_ONCE;
+            break;
+        case 0 : /* 'Cancel' */
+            data->response = MYFM_DIALOG_RESPONSE_CANCEL;
+            g_cancellable_cancel (data->cancellable);
+            break;
+        case 1 : /* 'Make Copy' */
+            if (gtk_toggle_button_get_active (apply_all))
+                data->response = MYFM_DIALOG_RESPONSE_MAKE_COPY_ALL;
+            else
+                data->response = MYFM_DIALOG_RESPONSE_MAKE_COPY_ONCE;
+            break;
+        case 2 : /* 'Skip' */
+            if (data->type == MYFM_DIALOG_TYPE_MERGE_CONFLICT) {
+                if (gtk_toggle_button_get_active (apply_all))
+                    data->response = MYFM_DIALOG_RESPONSE_SKIP_ALL_MERGES;
+                else
+                    data->response = MYFM_DIALOG_RESPONSE_SKIP_MERGE_ONCE;
+            }
+            else {
+                if (gtk_toggle_button_get_active (apply_all))
+                    data->response = MYFM_DIALOG_RESPONSE_SKIP_ALL_ERRORS;
+                else
+                    data->response = MYFM_DIALOG_RESPONSE_SKIP_ERROR_ONCE;
+            }
+            break;
+        case 3 : /* 'Replace' */
+            if (gtk_toggle_button_get_active (apply_all))
+                data->response = MYFM_DIALOG_RESPONSE_MERGE_ALL;
+            else
+                data->response = MYFM_DIALOG_RESPONSE_MERGE_ONCE;
+            break;
+    }
+
+    g_cond_signal (&data->cond);
+    g_mutex_unlock (&data->mutex);
+}
+
+static gboolean
+run_dialog_main_ctx (gpointer _data)
+{
+    GtkWidget *error_dialog;
+    struct dialog_data *data;
+    GtkWidget *msg_area;
+    GtkMessageType msg_type;
+    GtkWidget *check;
+    gchar *check_label;
+
+    data = _data;
+
+    if (data->type == MYFM_DIALOG_TYPE_MERGE_CONFLICT)
+        msg_type = GTK_MESSAGE_QUESTION;
+    else
+        msg_type = GTK_MESSAGE_ERROR;
+
+    error_dialog = gtk_message_dialog_new (data->win, GTK_DIALOG_MODAL,
+                                           msg_type, GTK_BUTTONS_NONE,
+                                           "%s", data->primary_msg);
+    g_object_set (G_OBJECT (error_dialog), "secondary-text",
+                  data->secondary_msg, NULL);
+    gtk_window_set_title (GTK_WINDOW (error_dialog), data->title);
+
+    if (data->type == MYFM_DIALOG_TYPE_MERGE_CONFLICT) {
+        check_label = "Apply this action to all errors";
+        gtk_dialog_add_buttons (GTK_DIALOG (error_dialog), "Cancel", 0,
+                                "Make Copy", 1, "Skip", 2, "Replace", 3, NULL);
+    }
+    else {
+        check_label = "Apply this action to all file conflicts";
+        gtk_dialog_add_buttons (GTK_DIALOG (error_dialog), "Cancel", 0, "Skip",
+                                2, NULL);
+    }
+
+    msg_area = gtk_message_dialog_get_message_area (GTK_MESSAGE_DIALOG (error_dialog));
+    check = gtk_check_button_new_with_label (check_label);
+    gtk_box_pack_end (GTK_BOX (msg_area), check, FALSE, TRUE, 0);
+    gtk_widget_show (check);
+
+    data->check = check;
+    g_signal_connect (GTK_DIALOG (error_dialog), "response",
+                      G_CALLBACK (on_error_dialog_response), data);
+
+    gtk_dialog_run (GTK_DIALOG (error_dialog));
+    gtk_widget_destroy (GTK_WIDGET (error_dialog));
+
+    return FALSE;
+}
+
+/* to be called from outside of the main context */
+gint
+myfm_utils_run_dialog_thread (MyFMDialogType type,
+                              GtkWindow *active,
+                              GCancellable *cancellable,
+                              gchar *title,
+                              gchar *primary_msg,
+                              gchar *format_msg, ...)
+{
+    struct dialog_data *data;
+    va_list va;
+    gchar *secondary_msg;
+    MyFMDialogResponse response;
+
+    va_start (va, format_msg);
+    secondary_msg = g_strdup_vprintf (format_msg, va);
+    va_end (va);
+
+    data = g_malloc0 (sizeof (struct dialog_data));
+    g_mutex_init (&data->mutex);
+    g_cond_init (&data->cond);
+    data->type = type;
+    data->win = active;
+    data->response = MYFM_DIALOG_RESPONSE_NONE;
+    data->cancellable = cancellable;
+    data->title = g_strdup (title);
+    data->primary_msg = g_strdup (primary_msg);
+    data->secondary_msg = secondary_msg;
+
+    g_mutex_lock (&data->mutex);
+    g_main_context_invoke (NULL, run_dialog_main_ctx, data);
+
+    /* wait on response from error dialog in main thread */
+    while (data->response == MYFM_DIALOG_RESPONSE_NONE)
+        g_cond_wait (&data->cond, &data->mutex);
+
+    response = data->response;
+    g_mutex_unlock (&data->mutex);
+    g_mutex_clear (&data->mutex);
+    g_cond_clear (&data->cond);
+    g_free (data->title);
+    g_free (data->primary_msg);
+    g_free (data->secondary_msg);
+    g_free (data);
+
+    return response;
 }

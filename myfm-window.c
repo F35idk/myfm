@@ -123,7 +123,7 @@ myfm_window_open_other (MyFMWindow *self, MyFMFile *file)
                        g_files, NULL, &error);
 
     if (error) {
-        myfm_utils_popup_error_dialog (GTK_WINDOW (self), "error in myfm_window \
+        myfm_utils_run_error_dialog (GTK_WINDOW (self), "error in myfm_window \
                                        when opening file(s) with '%s': %s",
                                        g_app_info_get_display_name (g_list_first (app_infos)->data),
                                        error->message);
