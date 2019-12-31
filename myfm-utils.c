@@ -246,20 +246,28 @@ run_dialog_main_ctx (gpointer _data)
     GtkMessageType msg_type;
     GtkWidget *check;
     gchar *check_label;
+    gchar *primary;
+    gchar *title;
 
     data = _data;
 
-    if (data->type == MYFM_DIALOG_TYPE_MERGE_CONFLICT)
+    if (data->type == MYFM_DIALOG_TYPE_MERGE_CONFLICT) {
         msg_type = GTK_MESSAGE_QUESTION;
-    else
+        primary = "File already exists. Replace it?";
+        title = "File Conflict";
+    }
+    else {
         msg_type = GTK_MESSAGE_ERROR;
+        primary = data->primary_msg;
+        title = data->title;
+    }
 
     error_dialog = gtk_message_dialog_new (data->win, GTK_DIALOG_MODAL,
                                            msg_type, GTK_BUTTONS_NONE,
-                                           "%s", data->primary_msg);
+                                           "%s", primary);
     g_object_set (G_OBJECT (error_dialog), "secondary-text",
                   data->secondary_msg, NULL);
-    gtk_window_set_title (GTK_WINDOW (error_dialog), data->title);
+    gtk_window_set_title (GTK_WINDOW (error_dialog), title);
 
     if (data->type == MYFM_DIALOG_TYPE_MERGE_CONFLICT) {
         check_label = "Apply this action to all errors";
@@ -287,33 +295,29 @@ run_dialog_main_ctx (gpointer _data)
     return FALSE;
 }
 
-/* to be called from outside of the main context */
-gint
-myfm_utils_run_dialog_thread (MyFMDialogType type,
-                              GtkWindow *active,
-                              GCancellable *cancellable,
-                              gchar *title,
-                              gchar *primary_msg,
-                              gchar *format_msg, ...)
+static gint
+run_dialog_thread (MyFMDialogType type,
+                   GtkWindow *active,
+                   GCancellable *cancellable,
+                   const gchar *title,
+                   const gchar *primary_msg,
+                   gchar *secondary_msg) /* NOTE: this will be freed */
 {
     struct dialog_data *data;
-    va_list va;
-    gchar *secondary_msg;
     MyFMDialogResponse response;
-
-    va_start (va, format_msg);
-    secondary_msg = g_strdup_vprintf (format_msg, va);
-    va_end (va);
 
     data = g_malloc0 (sizeof (struct dialog_data));
     g_mutex_init (&data->mutex);
     g_cond_init (&data->cond);
+
     data->type = type;
     data->win = active;
     data->response = MYFM_DIALOG_RESPONSE_NONE;
     data->cancellable = cancellable;
-    data->title = g_strdup (title);
-    data->primary_msg = g_strdup (primary_msg);
+    if (title)
+        data->title = g_strdup (title);
+    if (primary_msg)
+        data->primary_msg = g_strdup (primary_msg);
     data->secondary_msg = secondary_msg;
 
     g_mutex_lock (&data->mutex);
@@ -327,10 +331,49 @@ myfm_utils_run_dialog_thread (MyFMDialogType type,
     g_mutex_unlock (&data->mutex);
     g_mutex_clear (&data->mutex);
     g_cond_clear (&data->cond);
-    g_free (data->title);
-    g_free (data->primary_msg);
+    if (title)
+        g_free (data->title);
+    if (primary_msg)
+        g_free (data->primary_msg);
     g_free (data->secondary_msg);
     g_free (data);
 
     return response;
+}
+
+gint
+myfm_utils_run_merge_conflict_dialog_thread (GtkWindow *active,
+                                             GCancellable *cancellable,
+                                             gchar *format_msg, ...)
+{
+    va_list va;
+    gchar *secondary_msg;
+
+    va_start (va, format_msg);
+    secondary_msg = g_strdup_vprintf (format_msg, va);
+    va_end (va);
+
+    return run_dialog_thread (MYFM_DIALOG_TYPE_MERGE_CONFLICT,
+                              active, cancellable, NULL,
+                              NULL, secondary_msg);
+}
+
+gint
+myfm_utils_run_error_dialog_thread (GtkWindow *active,
+                                    GCancellable *cancellable,
+                                    const gchar *title,
+                                    const gchar *primary_msg,
+                                    gchar *format_msg, ...)
+
+{
+    va_list va;
+    gchar *secondary_msg;
+
+    va_start (va, format_msg);
+    secondary_msg = g_strdup_vprintf (format_msg, va);
+    va_end (va);
+
+    return run_dialog_thread (MYFM_DIALOG_TYPE_ERROR,
+                              active, cancellable, title,
+                              primary_msg, secondary_msg);
 }

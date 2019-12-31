@@ -5,6 +5,7 @@
 #include <gio/gio.h>
 
 #include "myfm-file.h"
+#include "myfm-utils.h"
 #include "myfm-copy-operation.h"
 #define G_LOG_DOMAIN "myfm-copy-operation"
 
@@ -14,195 +15,43 @@ static gpointer user_data = NULL;
 
 /* flags checked during copy operation
  * (set when handling error responses) */
-static gboolean ignore_std_errs = FALSE;
+static gboolean ignore_warn_errors = FALSE;
 static gboolean ignore_merges = FALSE;
 static gboolean make_copy_all = FALSE;
 static gboolean merge_all = FALSE;
 
-typedef enum {
-    ERROR_TYPE_MERGE,
-    ERROR_TYPE_STD, /* currently any error that isn't a merge conflict */
-} ErrorType;
-
-typedef enum {
-    ERROR_RESPONSE_NONE,
-    ERROR_RESPONSE_CANCEL,
-    ERROR_RESPONSE_MAKE_COPY_ONCE,
-    ERROR_RESPONSE_MAKE_COPY_ALL,
-    ERROR_RESPONSE_SKIP_STD_ONCE,
-    ERROR_RESPONSE_SKIP_STD_ALL,
-    ERROR_RESPONSE_SKIP_MERGE_ONCE,
-    ERROR_RESPONSE_SKIP_MERGE_ALL,
-    ERROR_RESPONSE_MERGE_ONCE,
-    ERROR_RESPONSE_MERGE_ALL,
-} ErrorResponse;
-
-static void
-on_error_dialog_response (GtkDialog *dialog, gint response_id,
-                          gpointer _data)
+/* convenience func */
+static MyFMDialogResponse
+run_merge_dialog (gchar *msg)
 {
-    gpointer *data;
-    GtkToggleButton *apply_all;
-    ErrorResponse response;
-    ErrorType type;
-    GMutex *mutex_ptr;
-    GCond *cond_ptr;
-
-    data = _data;
-    apply_all = data[5];
-    type = GPOINTER_TO_INT (data[2]);
-    mutex_ptr = data[4];
-    cond_ptr = data[3];
-
-    g_mutex_lock (mutex_ptr);
-
-    switch (response_id) {
-        default :
-            if (type == ERROR_TYPE_MERGE)
-                response = ERROR_RESPONSE_SKIP_MERGE_ONCE;
-            else
-                response = ERROR_RESPONSE_SKIP_STD_ONCE;
-            break;
-        case 0 : /* 'Cancel' */
-            response = ERROR_RESPONSE_CANCEL;
-            g_cancellable_cancel (cp_canceller);
-            break;
-        case 1 : /* 'Make Copy' */
-            if (gtk_toggle_button_get_active (apply_all))
-                response = ERROR_RESPONSE_MAKE_COPY_ALL;
-            else
-                response = ERROR_RESPONSE_MAKE_COPY_ONCE;
-            break;
-        case 2 : /* 'Skip' */
-            if (type == ERROR_TYPE_MERGE) {
-                if (gtk_toggle_button_get_active (apply_all))
-                    response = ERROR_RESPONSE_SKIP_MERGE_ALL;
-                else
-                    response = ERROR_RESPONSE_SKIP_MERGE_ONCE;
-            }
-            else {
-                if (gtk_toggle_button_get_active (apply_all))
-                    response = ERROR_RESPONSE_SKIP_STD_ALL;
-                else
-                    response = ERROR_RESPONSE_SKIP_STD_ONCE;
-            }
-            break;
-        case 3 : /* 'Replace' */
-            if (gtk_toggle_button_get_active (apply_all))
-                response = ERROR_RESPONSE_MERGE_ALL;
-            else
-                response = ERROR_RESPONSE_MERGE_ONCE;
-            break;
-    }
-
-    data[0] = GINT_TO_POINTER (response);
-    g_cond_signal (cond_ptr);
-    g_mutex_unlock (mutex_ptr);
+    return myfm_utils_run_merge_conflict_dialog_thread (win,
+                                                        cp_canceller,
+                                                        msg);
 }
 
-static gboolean
-popup_error_main_ctx (gpointer _data)
+/* convenience func */
+static MyFMDialogResponse
+run_warn_error_dialog (gchar *msg)
 {
-    GtkWidget *error_dialog;
-    gpointer *data;
-    ErrorType type;
-    gchar *primary;
-    GtkWidget *msg_area;
-    GtkWidget *check;
-    gchar *check_label;
-    gchar *msg;
-    gchar *title;
-
-    data = _data;
-    msg = data[1];
-    type = GPOINTER_TO_INT (data[2]);
-
-    if (type == ERROR_TYPE_MERGE) {
-        primary = "File already exists. Replace it?";
-        title = "File Conflict";
-        check_label = "Apply this action to all file conflicts";
-    }
-    else {
-        primary = "There was an error during the copy operation.";
-        title = "File Copy Error";
-        check_label = "Apply this action to all errors";
-    }
-
-    error_dialog = gtk_message_dialog_new (GTK_WINDOW (win), GTK_DIALOG_MODAL,
-                                           GTK_MESSAGE_QUESTION, GTK_BUTTONS_NONE,
-                                           "%s", primary);
-
-    g_object_set (G_OBJECT (error_dialog), "secondary-text", msg, NULL);
-    gtk_window_set_title (GTK_WINDOW (error_dialog), title);
-    g_free (msg);
-
-    if (type == ERROR_TYPE_MERGE )
-        gtk_dialog_add_buttons (GTK_DIALOG (error_dialog), "Cancel", 0,
-                                "Make Copy", 1, "Skip", 2, "Replace", 3, NULL);
-    else
-        gtk_dialog_add_buttons (GTK_DIALOG (error_dialog), "Cancel", 0, "Skip",
-                                2, NULL);
-
-    msg_area = gtk_message_dialog_get_message_area (GTK_MESSAGE_DIALOG (error_dialog));
-    check = gtk_check_button_new_with_label (check_label);
-    gtk_box_pack_end (GTK_BOX (msg_area), check, FALSE, TRUE, 0);
-    gtk_widget_show (check);
-
-    data[5] = check;
-    g_signal_connect (GTK_DIALOG (error_dialog), "response",
-                      G_CALLBACK (on_error_dialog_response), data);
-
-    gtk_dialog_run (GTK_DIALOG (error_dialog));
-    gtk_widget_destroy (GTK_WIDGET (error_dialog));
-
-    return FALSE;
-}
-
-static gint
-run_error_dialog (ErrorType type, const gchar *format_msg, ...)
-{
-    va_list va;
-    gchar *msg;
-    /* only one copy operation can happen at
-     * once, so we can keep these vars static
-     * and avoid mallocs (and frees) everywhere */
-    static gpointer data[6]; /* data to pass to our dialog */
-    static GCond cond;
-    static GMutex mutex;
-
-    va_start (va, format_msg);
-    msg = g_strdup_vprintf (format_msg, va);
-    va_end (va);
-
-    data[0] = GINT_TO_POINTER (ERROR_RESPONSE_NONE);
-    data[1] = msg;
-    data[2] = GINT_TO_POINTER (type);
-    data[3] = &cond;
-    data[4] = &mutex;
-    /* we leave 5th index for check_button in above function */
-
-    g_mutex_lock (&mutex);
-    g_main_context_invoke (NULL, popup_error_main_ctx, data);
-
-    /* wait on response from error dialog in main thread */
-    while (GPOINTER_TO_INT (data[0]) == ERROR_RESPONSE_NONE)
-        g_cond_wait (&cond, &mutex);
-
-    g_mutex_unlock (&mutex);
-    return GPOINTER_TO_INT (data[0]);
+    return myfm_utils_run_error_dialog_thread (win, cp_canceller,
+                                               "File Copy Error",
+                                               "There was an err"
+                                               "or during the co"
+                                               "py operation.",
+                                               "%s", msg);
 }
 
 static void
-handle_std_error (ErrorResponse response)
+handle_warn_error (MyFMDialogResponse response)
 {
     switch (response) {
         default :
             break;
-        case ERROR_RESPONSE_SKIP_STD_ALL :
-            ignore_std_errs = TRUE;
+        case MYFM_DIALOG_RESPONSE_SKIP_ALL_ERRORS :
+            ignore_warn_errors = TRUE;
             break;
-        case ERROR_RESPONSE_CANCEL :
-            ignore_std_errs = TRUE;
+        case MYFM_DIALOG_RESPONSE_CANCEL :
+            ignore_warn_errors = TRUE;
             ignore_merges = TRUE;
             break;
     }
@@ -251,7 +100,7 @@ copy_file_single (GFile *src,
                   gboolean make_copy_once)
 {
     GError *error = NULL;
-    ErrorResponse error_response;
+    MyFMDialogResponse error_response;
 
     if (merge_once || merge_all) {
         /* copy w/ overwrite */
@@ -263,10 +112,9 @@ copy_file_single (GFile *src,
             g_critical ("Error in myfm_copy_operation function "
                        "'copy_file_single: %s", error->message);
 
-            if (!ignore_std_errs) {
-                error_response = run_error_dialog (ERROR_TYPE_STD,
-                                                   "%s", error->message);
-                handle_std_error (error_response);
+            if (!ignore_warn_errors) {
+                error_response = run_warn_error_dialog (error->message);
+                handle_warn_error (error_response);
             }
             g_error_free (error);
             g_object_unref (dest);
@@ -289,34 +137,33 @@ copy_file_single (GFile *src,
                 if (!ignore_merges) {
                     if (!make_copy_all && !make_copy_once) {
                         /* run dialog and handle user response */
-                        error_response = run_error_dialog (ERROR_TYPE_MERGE,
-                                                          "%s", error->message);
+                        error_response = run_merge_dialog (error->message);
                         switch (error_response) {
                             default:
                                 break;
-                            case ERROR_RESPONSE_CANCEL:
-                                ignore_std_errs = TRUE;
+                            case MYFM_DIALOG_RESPONSE_CANCEL:
+                                ignore_warn_errors = TRUE;
                                 ignore_merges = TRUE;
                                 break;
-                            case ERROR_RESPONSE_MAKE_COPY_ONCE:
+                            case MYFM_DIALOG_RESPONSE_MAKE_COPY_ONCE:
                                 g_object_ref (src);
                                 retry_copy_no_merge (src, dest, FALSE);
                                 break;
-                            case ERROR_RESPONSE_MAKE_COPY_ALL:
+                            case MYFM_DIALOG_RESPONSE_MAKE_COPY_ALL:
                                 make_copy_all = TRUE;
                                 g_object_ref (src);
                                 retry_copy_no_merge (src, dest, FALSE);
                                 break;
-                            case ERROR_RESPONSE_SKIP_MERGE_ONCE:
+                            case MYFM_DIALOG_RESPONSE_SKIP_MERGE_ONCE:
                                 break;
-                            case ERROR_RESPONSE_SKIP_MERGE_ALL:
+                            case MYFM_DIALOG_RESPONSE_SKIP_ALL_MERGES:
                                 ignore_merges = TRUE;
                                 break;
-                            case ERROR_RESPONSE_MERGE_ONCE:
+                            case MYFM_DIALOG_RESPONSE_MERGE_ONCE:
                                 /* retry with merge_once = TRUE */
                                 copy_file_single (src, dest, TRUE, FALSE);
                                 break;
-                            case ERROR_RESPONSE_MERGE_ALL:
+                            case MYFM_DIALOG_RESPONSE_MERGE_ALL:
                                 merge_all = TRUE;
                                 break;
                         }
@@ -328,10 +175,9 @@ copy_file_single (GFile *src,
                 }
             }
             else {
-                if (!ignore_std_errs) {
-                    error_response = run_error_dialog (ERROR_TYPE_STD,
-                                                       "%s", error->message);
-                    handle_std_error (error_response);
+                if (!ignore_warn_errors) {
+                    error_response = run_warn_error_dialog (error->message);
+                    handle_warn_error (error_response);
                 }
             }
             g_error_free (error);
@@ -352,7 +198,7 @@ copy_dir_recursive (GFile *src,
 {
     GFileEnumerator *direnum;
     GError *error = NULL;
-    ErrorResponse error_response;
+    MyFMDialogResponse error_response;
   
     g_file_make_directory (dest, cp_canceller, &error);
 
@@ -364,40 +210,39 @@ copy_dir_recursive (GFile *src,
             if (!ignore_merges) {
                 if (!make_copy_once && !make_copy_all) {
                     if (!merge_all && !merge_once) {
-                        error_response = run_error_dialog (ERROR_TYPE_MERGE,
-                                                          "%s", error->message);
+                        error_response = run_merge_dialog (error->message);
                         switch (error_response) {
                             default:
                                 break;
-                            case ERROR_RESPONSE_CANCEL:
-                                ignore_std_errs = TRUE;
+                            case MYFM_DIALOG_RESPONSE_CANCEL:
+                                ignore_warn_errors = TRUE;
                                 ignore_merges = TRUE;
                                 break;
-                            case ERROR_RESPONSE_MAKE_COPY_ONCE:
+                            case MYFM_DIALOG_RESPONSE_MAKE_COPY_ONCE:
                                 g_object_ref (src);
                                 retry_copy_no_merge (src, dest, TRUE);
                                 break;
-                            case ERROR_RESPONSE_MAKE_COPY_ALL:
+                            case MYFM_DIALOG_RESPONSE_MAKE_COPY_ALL:
                                 make_copy_all = TRUE;
                                 g_object_ref (src);
                                 retry_copy_no_merge (src, dest, TRUE);
                                 break;
-                            case ERROR_RESPONSE_SKIP_MERGE_ONCE:
+                            case MYFM_DIALOG_RESPONSE_SKIP_MERGE_ONCE:
                                 break;
-                            case ERROR_RESPONSE_SKIP_MERGE_ALL:
+                            case MYFM_DIALOG_RESPONSE_SKIP_ALL_MERGES:
                                 ignore_merges = TRUE;
                                 break;
-                            case ERROR_RESPONSE_MERGE_ONCE:
+                            case MYFM_DIALOG_RESPONSE_MERGE_ONCE:
                                 /* FIXME: need to implement
                                  * rm -rf to do this */
                                 break;
-                            case ERROR_RESPONSE_MERGE_ALL:
+                            case MYFM_DIALOG_RESPONSE_MERGE_ALL:
                                 merge_all = TRUE;
                                 break;
                         }
                     }
                     else if (merge_all || merge_once) {
-                        /* TODO: currently we do not have
+                        /* FIXME: currently we do not have
                          * code for recursive delete, so
                          * overwriting directories isn't
                          * possible to implement yet */
@@ -410,10 +255,9 @@ copy_dir_recursive (GFile *src,
             }
         }
         else {
-            if (!ignore_std_errs) {
-                error_response = run_error_dialog (ERROR_TYPE_STD, "%s",
-                                                   error->message);
-                handle_std_error (error_response);
+            if (!ignore_warn_errors) {
+                error_response = run_warn_error_dialog (error->message);
+                handle_warn_error (error_response);
             }
         }
         g_error_free (error);
@@ -429,9 +273,8 @@ copy_dir_recursive (GFile *src,
         g_critical ("Error in myfm_copy_operation function "
                    "'copy_dir_recursive: %s", error->message);
 
-        error_response = run_error_dialog (ERROR_TYPE_STD, "%s",
-                                           error->message);
-        handle_std_error (error_response);
+        error_response = run_warn_error_dialog (error->message);
+        handle_warn_error (error_response);
         g_error_free (error);
         /* g_object_unref (direnum); */ /* (direnum is NULL) */
         g_object_unref (dest);
@@ -456,9 +299,8 @@ copy_dir_recursive (GFile *src,
             g_critical ("Error in myfm_copy_operation function "
                        "'copy_dir_recursive: %s", error->message);
 
-            error_response = run_error_dialog (ERROR_TYPE_STD,
-                                              "%s", error->message);
-            handle_std_error (error_response);
+            error_response = run_warn_error_dialog (error->message);
+            handle_warn_error (error_response);
             g_error_free (error2);
             continue;
         }
@@ -544,7 +386,7 @@ myfm_copy_operation_thread (GTask *task, gpointer src_object,
     g_object_unref (cp_canceller);
     cp_canceller = NULL;
     user_data = NULL;
-    ignore_std_errs = FALSE;
+    ignore_warn_errors = FALSE;
     ignore_merges = FALSE;
     make_copy_all = FALSE;
     merge_all = FALSE;
