@@ -88,8 +88,8 @@ myfm_clipboard_get_contents (MyFMClipBoard *self, gint *out_n_files,
         *out_n_files = n_copied;
         *out_copied = TRUE;
 
-        files = malloc (sizeof (MyFMFile *) * n_copied);
-        for (int i = 0; i < n_copied; i++) {
+        files = g_malloc (sizeof (MyFMFile *) * n_copied);
+        for (int i = 0; i < n_copied; i ++) {
             files[i] = g_ptr_array_index (self->copied_files, 0);
             myfm_file_ref (files[i]);
         }
@@ -103,7 +103,7 @@ myfm_clipboard_get_contents (MyFMClipBoard *self, gint *out_n_files,
 
         file_list = g_hash_table_get_values (self->cut_files);
         current = file_list;
-        for (int i = 0; i < n_cut; i++) {
+        for (int i = 0; i < n_cut; i ++) {
             if (!current)
                 break;
 

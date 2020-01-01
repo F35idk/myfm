@@ -51,12 +51,14 @@ myfm_directory_menu_on_paste_activate (GtkMenu *item,
                                          GTK_WINDOW (myfm_directory_menu_get_window (self)),
                                          NULL, NULL);
     }
-    else { /* clipboard files are cut */
+   else { /* clipboard files are cut */
 
     }
 
     for (int i = 0; i < n_files; i ++)
         myfm_file_unref (src_files[i]);
+
+    g_free (src_files);
 }
 
 static void

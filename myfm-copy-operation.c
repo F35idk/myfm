@@ -21,31 +21,36 @@ static gboolean make_copy_all = FALSE;
 static gboolean merge_all = FALSE;
 
 /* convenience func */
-static MyFMDialogResponse
-run_merge_dialog (gchar *msg)
+static MyFMDialogResponse /* (gint) */
+run_merge_dialog (const gchar *format_msg, ...)
 {
+    va_list va;
+    va_start (va, format_msg);
     return myfm_utils_run_merge_conflict_dialog_thread (win,
                                                         cp_canceller,
-                                                        msg);
+                                                        format_msg,
+                                                        va);
 }
 
 /* convenience func */
-static MyFMDialogResponse
-run_warn_error_dialog (gchar *msg)
+static MyFMDialogResponse /* (gint) */
+run_warn_error_dialog (const gchar *format_msg, ...)
 {
-    return myfm_utils_run_error_dialog_thread (win, cp_canceller,
-                                               "File Copy Error",
-                                               "There was an err"
-                                               "or during the co"
-                                               "py operation.",
-                                               "%s", msg);
+    va_list va;
+    va_start (va, format_msg);
+    return myfm_utils_run_skippable_err_dialog_thread (win, cp_canceller,
+                                                      "File Copy Error",
+                                                      "There was an err"
+                                                      "or during the co"
+                                                      "py operation.",
+                                                       format_msg, va);
 }
 
 static void
 handle_warn_error (MyFMDialogResponse response)
 {
     switch (response) {
-        default :
+        default : /* do nothing if skip_once */
             break;
         case MYFM_DIALOG_RESPONSE_SKIP_ALL_ERRORS :
             ignore_warn_errors = TRUE;
@@ -113,7 +118,7 @@ copy_file_single (GFile *src,
                        "'copy_file_single: %s", error->message);
 
             if (!ignore_warn_errors) {
-                error_response = run_warn_error_dialog (error->message);
+                error_response = run_warn_error_dialog ("%s", error->message);
                 handle_warn_error (error_response);
             }
             g_error_free (error);
@@ -137,7 +142,7 @@ copy_file_single (GFile *src,
                 if (!ignore_merges) {
                     if (!make_copy_all && !make_copy_once) {
                         /* run dialog and handle user response */
-                        error_response = run_merge_dialog (error->message);
+                        error_response = run_merge_dialog ("%s", error->message);
                         switch (error_response) {
                             default:
                                 break;
@@ -176,7 +181,7 @@ copy_file_single (GFile *src,
             }
             else {
                 if (!ignore_warn_errors) {
-                    error_response = run_warn_error_dialog (error->message);
+                    error_response = run_warn_error_dialog ("%s", error->message);
                     handle_warn_error (error_response);
                 }
             }
@@ -210,7 +215,7 @@ copy_dir_recursive (GFile *src,
             if (!ignore_merges) {
                 if (!make_copy_once && !make_copy_all) {
                     if (!merge_all && !merge_once) {
-                        error_response = run_merge_dialog (error->message);
+                        error_response = run_merge_dialog ("%s", error->message);
                         switch (error_response) {
                             default:
                                 break;
@@ -256,7 +261,7 @@ copy_dir_recursive (GFile *src,
         }
         else {
             if (!ignore_warn_errors) {
-                error_response = run_warn_error_dialog (error->message);
+                error_response = run_warn_error_dialog ("%s", error->message);
                 handle_warn_error (error_response);
             }
         }
@@ -273,7 +278,7 @@ copy_dir_recursive (GFile *src,
         g_critical ("Error in myfm_copy_operation function "
                    "'copy_dir_recursive: %s", error->message);
 
-        error_response = run_warn_error_dialog (error->message);
+        error_response = run_warn_error_dialog ("%s", error->message);
         handle_warn_error (error_response);
         g_error_free (error);
         /* g_object_unref (direnum); */ /* (direnum is NULL) */
@@ -299,7 +304,7 @@ copy_dir_recursive (GFile *src,
             g_critical ("Error in myfm_copy_operation function "
                        "'copy_dir_recursive: %s", error->message);
 
-            error_response = run_warn_error_dialog (error->message);
+            error_response = run_warn_error_dialog ("%s", error->message);
             handle_warn_error (error_response);
             g_error_free (error2);
             continue;
@@ -344,43 +349,36 @@ myfm_copy_operation_thread (GTask *task, gpointer src_object,
                             GCancellable *cancellable)
 {
     struct file_w_type *arr;
-    struct file_w_type current;
     MyFMApplication *app;
     GFile *dest_dir;
     gchar *dest_dir_path;
-    int i;
 
     arr = (struct file_w_type *) task_data;
     dest_dir = arr[0].g_file;
     dest_dir_path = g_file_get_path (dest_dir);
     g_object_unref (dest_dir);
 
-    i = 1;
-    current = arr[i];
-
-    while (current.g_file != NULL) {
+    /* last struct element has g_file = NULL */
+    struct file_w_type *current;
+    for (current = arr + 1; (*current).g_file; current++) {
         gchar *src_basename;
         GFile *dest;
 
-        src_basename = g_file_get_basename (current.g_file);
+        src_basename = g_file_get_basename ((*current).g_file);
         dest = g_file_new_build_filename (dest_dir_path,
                                           src_basename,
                                           NULL);
         g_free (src_basename);
 
-        if (current.type == G_FILE_TYPE_DIRECTORY)
-            copy_dir_recursive (current.g_file, dest,
+        if ((*current).type == G_FILE_TYPE_DIRECTORY)
+            copy_dir_recursive ((*current).g_file, dest,
                                 FALSE, FALSE);
         else
-            copy_file_single (current.g_file, dest,
+            copy_file_single ((*current).g_file, dest,
                               FALSE, FALSE);
-
-        i ++;
-        current = arr[i];
     }
     g_free (dest_dir_path);
     g_free (arr);
-
 
     /* reset flags/statics */
     g_object_unref (cp_canceller);
@@ -460,6 +458,7 @@ myfm_copy_operation_start_async (MyFMFile **src_files, gint n_files,
                      myfm_copy_operation_callback_wrapper,
                      cb);
 
+    g_return_if_fail (!myfm_application_copy_in_progress (app));
     myfm_application_set_copy_in_progress (app, TRUE);
 
     g_task_set_task_data (cp, arr, NULL);

@@ -253,13 +253,28 @@ run_dialog_main_ctx (gpointer _data)
 
     if (data->type == MYFM_DIALOG_TYPE_MERGE_CONFLICT) {
         msg_type = GTK_MESSAGE_QUESTION;
-        primary = "File already exists. Replace it?";
-        title = "File Conflict";
+        /* defaults for nullable msgs */
+        if (data->primary_msg == NULL)
+            primary = "File already exists. Replace it?";
+        else
+            primary = data->primary_msg;
+        if (data->title == NULL)
+            title = "File Conflict";
+        else
+            title = data->title;
     }
+    /* FIXME: compact this bloated code */
     else {
         msg_type = GTK_MESSAGE_ERROR;
-        primary = data->primary_msg;
-        title = data->title;
+        /* defaults for nullable msgs */
+        if (data->primary_msg == NULL)
+            primary = "There was an error.";
+        else
+            primary = data->primary_msg;
+        if (data->title == NULL)
+            title = "Error";
+        else
+            title = data->title;
     }
 
     error_dialog = gtk_message_dialog_new (data->win, GTK_DIALOG_MODAL,
@@ -270,14 +285,18 @@ run_dialog_main_ctx (gpointer _data)
     gtk_window_set_title (GTK_WINDOW (error_dialog), title);
 
     if (data->type == MYFM_DIALOG_TYPE_MERGE_CONFLICT) {
-        check_label = "Apply this action to all errors";
+        check_label = "Apply this action to all file conflicts";
         gtk_dialog_add_buttons (GTK_DIALOG (error_dialog), "Cancel", 0,
                                 "Make Copy", 1, "Skip", 2, "Replace", 3, NULL);
     }
     else {
-        check_label = "Apply this action to all file conflicts";
-        gtk_dialog_add_buttons (GTK_DIALOG (error_dialog), "Cancel", 0, "Skip",
-                                2, NULL);
+        check_label = "Apply this action to all errors";
+        /* add skip button (or don't) */
+        if (data->type == MYFM_DIALOG_TYPE_SKIPPABLE_ERR)
+            gtk_dialog_add_buttons (GTK_DIALOG (error_dialog), "Cancel", 0, "Skip",
+                                    2, NULL);
+        else
+            gtk_dialog_add_buttons (GTK_DIALOG (error_dialog), "Cancel", 0, NULL);
     }
 
     msg_area = gtk_message_dialog_get_message_area (GTK_MESSAGE_DIALOG (error_dialog));
@@ -295,13 +314,21 @@ run_dialog_main_ctx (gpointer _data)
     return FALSE;
 }
 
-static gint
+
+/* for use outside of the main context. pops up a dialog
+ * of the type specified by 'type'. the thread this is
+ * run in will sleep until the user responds. 'cancellable'
+ * will be cancelled if the user presses the 'Cancel' button
+ * in the popup */
+/* NOTE: this frees the passed strings, so make sure to
+ * strdup them */
+gint
 run_dialog_thread (MyFMDialogType type,
                    GtkWindow *active,
                    GCancellable *cancellable,
-                   const gchar *title,
-                   const gchar *primary_msg,
-                   gchar *secondary_msg) /* NOTE: this will be freed */
+                   gchar *title,       /* nullable */
+                   gchar *primary_msg, /* nullable */
+                   gchar *secondary_msg)
 {
     struct dialog_data *data;
     MyFMDialogResponse response;
@@ -314,10 +341,12 @@ run_dialog_thread (MyFMDialogType type,
     data->win = active;
     data->response = MYFM_DIALOG_RESPONSE_NONE;
     data->cancellable = cancellable;
+
     if (title)
-        data->title = g_strdup (title);
+        data->title = title;
     if (primary_msg)
-        data->primary_msg = g_strdup (primary_msg);
+        data->primary_msg = primary_msg;
+
     data->secondary_msg = secondary_msg;
 
     g_mutex_lock (&data->mutex);
@@ -331,26 +360,26 @@ run_dialog_thread (MyFMDialogType type,
     g_mutex_unlock (&data->mutex);
     g_mutex_clear (&data->mutex);
     g_cond_clear (&data->cond);
+
     if (title)
         g_free (data->title);
     if (primary_msg)
         g_free (data->primary_msg);
+
     g_free (data->secondary_msg);
     g_free (data);
 
     return response;
 }
 
+/* convenience/wrapper varargs function for merge conflicts */
 gint
 myfm_utils_run_merge_conflict_dialog_thread (GtkWindow *active,
                                              GCancellable *cancellable,
-                                             gchar *format_msg, ...)
+                                             const gchar *format_msg,
+                                             va_list va)
 {
-    va_list va;
-    gchar *secondary_msg;
-
-    va_start (va, format_msg);
-    secondary_msg = g_strdup_vprintf (format_msg, va);
+    gchar *secondary_msg = g_strdup_vprintf (format_msg, va);
     va_end (va);
 
     return run_dialog_thread (MYFM_DIALOG_TYPE_MERGE_CONFLICT,
@@ -358,22 +387,22 @@ myfm_utils_run_merge_conflict_dialog_thread (GtkWindow *active,
                               NULL, secondary_msg);
 }
 
+/* convenience/wrapper varargs function for skippable errors */
 gint
-myfm_utils_run_error_dialog_thread (GtkWindow *active,
-                                    GCancellable *cancellable,
-                                    const gchar *title,
-                                    const gchar *primary_msg,
-                                    gchar *format_msg, ...)
+myfm_utils_run_skippable_err_dialog_thread (GtkWindow *active,
+                                            GCancellable *cancellable,
+                                            const gchar *title,
+                                            const gchar *primary_msg,
+                                            const gchar *format_msg,
+                                            va_list va)
 
 {
-    va_list va;
-    gchar *secondary_msg;
-
-    va_start (va, format_msg);
-    secondary_msg = g_strdup_vprintf (format_msg, va);
+    gchar *secondary_msg = g_strdup_vprintf (format_msg, va);
     va_end (va);
 
-    return run_dialog_thread (MYFM_DIALOG_TYPE_ERROR,
-                              active, cancellable, title,
-                              primary_msg, secondary_msg);
+    return run_dialog_thread (MYFM_DIALOG_TYPE_SKIPPABLE_ERR,
+                              active, cancellable,
+                              g_strdup (title),
+                              g_strdup (primary_msg),
+                              secondary_msg);
 }
