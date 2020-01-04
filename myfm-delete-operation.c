@@ -107,7 +107,6 @@ myfm_delete_operation_thread (GTask *task, gpointer src_object,
     g_free (arr);
     g_object_unref (del_canceller);
     del_canceller = NULL;
-    user_data = NULL;
 
     app = MYFM_APPLICATION (gtk_window_get_application (win));
     myfm_application_set_delete_in_progress (app, FALSE);
@@ -126,6 +125,8 @@ myfm_delete_operation_callback_wrapper (GObject *src_object,
 
     if (cb)
         cb (user_data);
+
+    user_data = NULL;
 }
 
 /* TODO: if file is in clipboard, simply mark the

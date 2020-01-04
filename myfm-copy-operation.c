@@ -384,7 +384,6 @@ myfm_copy_operation_thread (GTask *task, gpointer src_object,
     /* reset flags/statics */
     g_object_unref (cp_canceller);
     cp_canceller = NULL;
-    user_data = NULL;
     ignore_warn_errors = FALSE;
     ignore_merges = FALSE;
     make_copy_all = FALSE;
@@ -417,6 +416,8 @@ myfm_copy_operation_callback_wrapper (GObject *src_object,
 
     if (cb)
         cb (user_data);
+
+    user_data = NULL;
 }
 
 void
