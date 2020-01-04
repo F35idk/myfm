@@ -353,7 +353,6 @@ myfm_copy_operation_thread (GTask *task, gpointer src_object,
                             GCancellable *cancellable)
 {
     struct file_w_type *arr;
-    MyFMApplication *app;
     GFile *dest_dir;
     gchar *dest_dir_path;
 
@@ -384,18 +383,6 @@ myfm_copy_operation_thread (GTask *task, gpointer src_object,
     g_free (dest_dir_path);
     g_free (arr);
 
-    /* reset flags/statics */
-    g_object_unref (cp_canceller);
-    cp_canceller = NULL;
-    ignore_warn_errors = FALSE;
-    ignore_merges = FALSE;
-    make_copy_all = FALSE;
-    merge_all = FALSE;
-
-    app = MYFM_APPLICATION (gtk_window_get_application (win));
-    myfm_application_set_copy_in_progress (app, FALSE);
-    win = NULL;
-
     g_debug ("finished");
     return; /* no need for g_task_return_x */
 }
@@ -410,17 +397,31 @@ myfm_copy_operation_cancel (void)
 /* TODO: pass myfm_file array
  * to user callback through this */
 static void
-myfm_copy_operation_callback_wrapper (GObject *src_object,
-                                      GAsyncResult *res,
-                                      gpointer _cb)
+myfm_copy_operation_finish (GObject *src_object,
+                            GAsyncResult *res,
+                            gpointer _cb)
 {
-    MyFMCopyCallback cb = _cb;
-    g_object_unref (res);
+    MyFMApplication *app;
+    MyFMCopyCallback cb;
+
+    cb = _cb;
 
     if (cb)
         cb (user_data);
 
+    app = MYFM_APPLICATION (gtk_window_get_application (win));
+    myfm_application_set_copy_in_progress (app, FALSE);
+    g_object_unref (cp_canceller);
+    g_object_unref (res);
+
+    /* reset flags/statics */
+    win = NULL;
+    cp_canceller = NULL;
     user_data = NULL;
+    ignore_warn_errors = FALSE;
+    ignore_merges = FALSE;
+    make_copy_all = FALSE;
+    merge_all = FALSE;
 }
 
 void
@@ -460,7 +461,7 @@ myfm_copy_operation_start_async (MyFMFile **src_files, gint n_files,
     user_data = data;
     app = MYFM_APPLICATION (gtk_window_get_application (active));
     cp = g_task_new (NULL, cp_canceller,
-                     myfm_copy_operation_callback_wrapper,
+                     myfm_copy_operation_finish,
                      cb);
 
     g_return_if_fail (!myfm_application_copy_in_progress (app));

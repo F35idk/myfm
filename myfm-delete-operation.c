@@ -101,7 +101,6 @@ myfm_delete_operation_thread (GTask *task, gpointer src_object,
                               gpointer task_data,
                               GCancellable *cancellable)
 {
-    MyFMApplication *app;
     GFile **arr;
     GFile *current;
 
@@ -111,28 +110,34 @@ myfm_delete_operation_thread (GTask *task, gpointer src_object,
                                cancellable);
         g_object_unref (current);
     }
-
     g_free (arr);
     g_object_unref (cancellable);
 
-    app = MYFM_APPLICATION (gtk_window_get_application (win));
-    myfm_application_set_delete_in_progress (app, FALSE);
-
-    win = NULL;
     g_debug ("finished");
 }
 
 static void
-myfm_delete_operation_callback_wrapper (GObject *src_object,
-                                        GAsyncResult *res,
-                                        gpointer _cb)
+myfm_delete_operation_finish (GObject *src_object,
+                              GAsyncResult *res,
+                              gpointer _cb)
 {
-    MyFMDeleteCallback cb = _cb;
-    g_object_unref (res);
+    MyFMDeleteCallback cb;
+    MyFMApplication *app;
+    GCancellable *cancellable;
+
+    cb = _cb;
 
     if (cb)
         cb (user_data);
 
+    app = MYFM_APPLICATION (gtk_window_get_application (win));
+    myfm_application_set_delete_in_progress (app, FALSE);
+
+    cancellable = g_task_get_cancellable (G_TASK (res));
+    g_object_unref (cancellable);
+    g_object_unref (res);
+
+    win = NULL;
     user_data = NULL;
 }
 
@@ -161,7 +166,7 @@ myfm_delete_operation_start_async (MyFMFile **src_files, gint n_files,
     user_data = data;
     app = MYFM_APPLICATION (gtk_window_get_application (active));
     del = g_task_new (NULL, cancellable,
-                      myfm_delete_operation_callback_wrapper,
+                      myfm_delete_operation_finish,
                       cb);
 
     g_return_if_fail (!myfm_application_delete_in_progress (app));
