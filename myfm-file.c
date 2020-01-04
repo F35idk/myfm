@@ -247,16 +247,16 @@ default_update_callback (GFile *old_g_file, gpointer myfm_file,
                             NULL);
 }
 
-/* flag to tell setup_signals ()
- * whether to install signals
- * on the myfm_file's g_file
- * (only needs to happen once,
- * during the first construct) */
-static gboolean first_init = TRUE;
-
 static void
 setup_signals (GFile *g_file)
 {
+
+  /* tells us whether to install
+   * signals on the myfm_file's
+   * g_file (only needs to happen
+   * once, during the first construct) */
+    static gboolean first_init = TRUE;
+
     if (first_init) {
         g_signal_new ("updated", G_TYPE_FILE,
                       G_SIGNAL_RUN_FIRST, 0,
