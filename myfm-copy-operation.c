@@ -288,8 +288,8 @@ copy_dir_recursive (GFile *src,
     }
 
     while (TRUE) {
-        GFile *child;
-        GFileInfo *child_info;
+        GFile *child = NULL;
+        GFileInfo *child_info = NULL;
         GError *error2 = NULL;
         gboolean fail;
         GFileType child_type;
@@ -302,12 +302,13 @@ copy_dir_recursive (GFile *src,
                                            &error2);
         if (fail) {
             g_critical ("Error in myfm_copy_operation function "
-                       "'copy_dir_recursive: %s", error->message);
+                       "'copy_dir_recursive': %s", error->message);
 
             error_response = run_warn_error_dialog ("%s", error->message);
             handle_warn_error (error_response);
             g_error_free (error2);
-            continue;
+            g_object_unref (direnum);
+            return; /* NOTE: continue instead? probably not */
         }
         if (child_info == NULL) {
             break;

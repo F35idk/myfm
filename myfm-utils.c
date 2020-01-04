@@ -231,6 +231,9 @@ on_error_dialog_response (GtkDialog *dialog, gint response_id,
             else
                 data->response = MYFM_DIALOG_RESPONSE_MERGE_ONCE;
             break;
+        case 4 : /* 'OK' */
+            data->response = MYFM_DIALOG_RESPONSE_OK;
+            break;
     }
 
     g_cond_signal (&data->cond);
@@ -296,7 +299,7 @@ run_dialog_main_ctx (gpointer _data)
             gtk_dialog_add_buttons (GTK_DIALOG (error_dialog), "Cancel", 0, "Skip",
                                     2, NULL);
         else
-            gtk_dialog_add_buttons (GTK_DIALOG (error_dialog), "Cancel", 0, NULL);
+            gtk_dialog_add_buttons (GTK_DIALOG (error_dialog), "OK", 4, NULL);
     }
 
     msg_area = gtk_message_dialog_get_message_area (GTK_MESSAGE_DIALOG (error_dialog));
@@ -323,12 +326,12 @@ run_dialog_main_ctx (gpointer _data)
 /* NOTE: this frees the passed strings, so make sure to
  * strdup them */
 gint
-run_dialog_thread (MyFMDialogType type,
-                   GtkWindow *active,
-                   GCancellable *cancellable,
-                   gchar *title,       /* nullable */
-                   gchar *primary_msg, /* nullable */
-                   gchar *secondary_msg)
+myfm_utils_run_dialog_thread (MyFMDialogType type,
+                              GtkWindow *active,
+                              GCancellable *cancellable,
+                              gchar *title,       /* nullable */
+                              gchar *primary_msg, /* nullable */
+                              gchar *secondary_msg)
 {
     struct dialog_data *data;
     MyFMDialogResponse response;
@@ -382,9 +385,9 @@ myfm_utils_run_merge_conflict_dialog_thread (GtkWindow *active,
     gchar *secondary_msg = g_strdup_vprintf (format_msg, va);
     va_end (va);
 
-    return run_dialog_thread (MYFM_DIALOG_TYPE_MERGE_CONFLICT,
-                              active, cancellable, NULL,
-                              NULL, secondary_msg);
+    return myfm_utils_run_dialog_thread (MYFM_DIALOG_TYPE_MERGE_CONFLICT,
+                                         active, cancellable, NULL,
+                                         NULL, secondary_msg);
 }
 
 /* convenience/wrapper varargs function for skippable errors */
@@ -400,9 +403,9 @@ myfm_utils_run_skippable_err_dialog_thread (GtkWindow *active,
     gchar *secondary_msg = g_strdup_vprintf (format_msg, va);
     va_end (va);
 
-    return run_dialog_thread (MYFM_DIALOG_TYPE_SKIPPABLE_ERR,
-                              active, cancellable,
-                              g_strdup (title),
-                              g_strdup (primary_msg),
-                              secondary_msg);
+    return myfm_utils_run_dialog_thread (MYFM_DIALOG_TYPE_SKIPPABLE_ERR,
+                                        active, cancellable,
+                                        g_strdup (title),
+                                        g_strdup (primary_msg),
+                                        secondary_msg);
 }

@@ -23,6 +23,7 @@ typedef enum {
 /* user responses to our popup dialogs */
 typedef enum {
     MYFM_DIALOG_RESPONSE_NONE,
+    MYFM_DIALOG_RESPONSE_OK,
     MYFM_DIALOG_RESPONSE_CANCEL,
     MYFM_DIALOG_RESPONSE_MAKE_COPY_ONCE,
     MYFM_DIALOG_RESPONSE_MAKE_COPY_ALL,
@@ -35,7 +36,7 @@ typedef enum {
     MYFM_DIALOG_RESPONSE_MERGE_ALL,
 } MyFMDialogResponse;
 
-gint      run_dialog_thread                           (MyFMDialogType type, GtkWindow *active,
+gint      myfm_utils_run_dialog_thread                 (MyFMDialogType type, GtkWindow *active,
                                                        GCancellable *cancellable, gchar *title,
                                                        gchar *primary_msg, gchar *secondary_msg);
 gint      myfm_utils_run_skippable_err_dialog_thread  (GtkWindow *active, GCancellable *cancellable,

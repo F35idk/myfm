@@ -8,6 +8,7 @@
 #include "myfm-directory-view.h"
 #include "myfm-utils.h"
 #include "myfm-copy-operation.h"
+#include "myfm-delete-operation.h"
 #include "myfm-file-menu.h"
 #define G_LOG_DOMAIN "myfm-file-menu"
 
@@ -69,6 +70,13 @@ myfm_file_menu_on_item_activate (GtkMenuItem *item,
         cboard = myfm_application_get_file_clipboard (MYFM_APPLICATION (app));
 
         myfm_clipboard_add_to_copied (cboard, &self->file, 1);
+    }
+    else if (!strcmp (label, "Delete")) {
+
+        myfm_delete_operation_start_async (&self->file, 1,
+                                           GTK_WINDOW (myfm_file_menu_get_window (self)),
+                                           NULL, NULL);
+
     }
     else if (!strcmp (label, "Open in New Window")) {
         // myfm_file_operations_copy_async (self->file,
