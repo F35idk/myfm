@@ -36,20 +36,23 @@ typedef enum {
     MYFM_DIALOG_RESPONSE_MERGE_ALL,
 } MyFMDialogResponse;
 
-gint      myfm_utils_run_dialog_thread                 (MyFMDialogType type, GtkWindow *active,
-                                                       GCancellable *cancellable, gchar *title,
-                                                       gchar *primary_msg, gchar *secondary_msg);
-gint      myfm_utils_run_skippable_err_dialog_thread  (GtkWindow *active, GCancellable *cancellable,
-                                                       const gchar *title, const gchar *primary_msg,
-                                                       const gchar *format_msg, va_list va);
-gint      myfm_utils_run_merge_conflict_dialog_thread (GtkWindow *active, GCancellable *cancellable,
-                                                       const gchar *format_msg, va_list va);
-gint      myfm_utils_run_error_dialog                 (GtkWindow *parent, gchar *format_msg, ...);
-GtkWidget *myfm_utils_new_menu_item                   (const gchar *label, guint keyval,
-                                                       GdkModifierType accel_mods);
-void      myfm_utils_for_each_child                   (GFile *dir, const gchar *attributes,
-                                                       GCancellable *cancellable,
-                                                       gint io_priority, GFileForEachFunc func,
-                                                       gpointer user_data);
+gint      myfm_utils_run_dialog_thread                  (MyFMDialogType type, GtkWindow *active,
+                                                        GCancellable *cancellable, gchar *title,
+                                                        gchar *primary_msg, gchar *secondary_msg);
+gint      myfm_utils_run_merge_conflict_dialog_thread  (GtkWindow *active, GCancellable *cancellable,
+                                                        const gchar *format_msg, va_list va);
+gint      myfm_utils_run_skippable_err_dialog_thread   (GtkWindow *active, GCancellable *cancellable,
+                                                        const gchar *title, const gchar *primary_msg,
+                                                        const gchar *format_msg, va_list va);
+gint      myfm_utils_run_unskippable_err_dialog_thread (GtkWindow *active, GCancellable *cancellable,
+                                                        const gchar *title, const gchar *primary_msg,
+                                                        const gchar *format_msg, va_list va);
+gint      myfm_utils_run_error_dialog                  (GtkWindow *parent, gchar *format_msg, ...);
+GtkWidget *myfm_utils_new_menu_item                    (const gchar *label, guint keyval,
+                                                        GdkModifierType accel_mods);
+void      myfm_utils_for_each_child                    (GFile *dir, const gchar *attributes,
+                                                        GCancellable *cancellable,
+                                                        gint io_priority, GFileForEachFunc func,
+                                                        gpointer user_data);
 
 #endif /* __MYFM_UTILS_H */

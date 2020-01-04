@@ -314,6 +314,10 @@ run_dialog_main_ctx (gpointer _data)
     gtk_dialog_run (GTK_DIALOG (error_dialog));
     gtk_widget_destroy (GTK_WIDGET (error_dialog));
 
+    /* if error is unskippable and fatal, cancel no matter the response */
+    if (data->type == MYFM_DIALOG_TYPE_UNSKIPPABLE_ERR)
+        g_cancellable_cancel (data->cancellable);
+
     return FALSE;
 }
 
@@ -408,4 +412,28 @@ myfm_utils_run_skippable_err_dialog_thread (GtkWindow *active,
                                         g_strdup (title),
                                         g_strdup (primary_msg),
                                         secondary_msg);
+}
+
+/* unskippable, fatal errors. will cancel
+ * 'cancellable' no matter the user response */
+gint
+myfm_utils_run_unskippable_err_dialog_thread (GtkWindow *active,
+                                              GCancellable *cancellable,
+                                              const gchar *title,
+                                              const gchar *primary_msg,
+                                              const gchar *format_msg,
+                                              va_list va)
+{
+    MyFMDialogType type;
+    gchar *secondary_msg;
+
+    type = MYFM_DIALOG_TYPE_UNSKIPPABLE_ERR;
+    secondary_msg = g_strdup_vprintf (format_msg, va);
+    va_end (va);
+
+    return myfm_utils_run_dialog_thread (type, active,
+                                         cancellable,
+                                         g_strdup (title),
+                                         g_strdup (primary_msg),
+                                         secondary_msg);
 }

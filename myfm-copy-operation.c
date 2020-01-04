@@ -21,7 +21,8 @@ static gboolean ignore_merges = FALSE;
 static gboolean make_copy_all = FALSE;
 static gboolean merge_all = FALSE;
 
-/* convenience func */
+/* convenience dialog funcs below */
+
 static MyFMDialogResponse /* (gint) */
 run_merge_dialog (const gchar *format_msg, ...)
 {
@@ -33,7 +34,6 @@ run_merge_dialog (const gchar *format_msg, ...)
                                                         va);
 }
 
-/* convenience func */
 static MyFMDialogResponse /* (gint) */
 run_warn_error_dialog (const gchar *format_msg, ...)
 {
@@ -45,6 +45,20 @@ run_warn_error_dialog (const gchar *format_msg, ...)
                                                       "or during the co"
                                                       "py operation.",
                                                        format_msg, va);
+}
+
+static MyFMDialogResponse /* (gint) */
+run_fatal_err_dialog (const gchar *format_msg, ...)
+{
+    va_list va;
+    va_start (va, format_msg);
+    return myfm_utils_run_unskippable_err_dialog_thread (win, cp_canceller,
+                                                         "File Copy Error",
+                                                         "There was a fatal"
+                                                         " error during the"
+                                                         " copy operation.",
+                                                          format_msg, va);
+
 }
 
 static void
@@ -206,9 +220,20 @@ copy_dir_recursive (GFile *src,
     GError *error = NULL;
     MyFMDialogResponse error_response;
 
-    if (merge_all || merge_once)
+    if (merge_all || merge_once) {
         myfm_delete_operation_delete_single_sync (dest, win,
-                                                  cp_canceller);
+                                                  cp_canceller,
+                                                  &error);
+
+        if (error) {
+            g_critical ("Error in myfm_copy_operation function "
+                       "'copy_dir_recursive': %s", error->message);
+            /* operation will be canceled */
+            run_fatal_err_dialog ("%s", error->message);
+            g_error_free (error);
+            return;
+        }
+    }
 
     g_file_make_directory (dest, cp_canceller, &error);
 
@@ -405,7 +430,6 @@ myfm_copy_operation_finish (GObject *src_object,
     MyFMCopyCallback cb;
 
     cb = _cb;
-
     if (cb)
         cb (user_data);
 
@@ -434,6 +458,8 @@ myfm_copy_operation_start_async (MyFMFile **src_files, gint n_files,
     GFile *g_dest;
     MyFMApplication *app;
 
+    app = MYFM_APPLICATION (gtk_window_get_application (active));
+    g_return_if_fail (!myfm_application_copy_in_progress (app));
     g_return_if_fail (active != NULL);
 
     arr = g_malloc (sizeof (struct file_w_type) * (n_files + 2));
@@ -459,12 +485,10 @@ myfm_copy_operation_start_async (MyFMFile **src_files, gint n_files,
     win = active;
     cp_canceller = g_cancellable_new ();
     user_data = data;
-    app = MYFM_APPLICATION (gtk_window_get_application (active));
     cp = g_task_new (NULL, cp_canceller,
                      myfm_copy_operation_finish,
                      cb);
 
-    g_return_if_fail (!myfm_application_copy_in_progress (app));
     myfm_application_set_copy_in_progress (app, TRUE);
 
     g_task_set_task_data (cp, arr, NULL);

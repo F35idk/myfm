@@ -16,6 +16,6 @@ void myfm_delete_operation_start_async        (MyFMFile **src_files, gint n_file
                                                GtkWindow *active,
                                                MyFMDeleteCallback cb, gpointer data);
 void myfm_delete_operation_delete_single_sync (GFile *file, GtkWindow *active,
-                                               GCancellable *cancellable);
+                                               GCancellable *cancellable, GError **error);
 
 #endif /* __MYFM_DELETE_OPERATION_H */
