@@ -78,20 +78,6 @@ myfm_file_menu_on_item_activate (GtkMenuItem *item,
                                            NULL, NULL);
 
     }
-    else if (!strcmp (label, "Open in New Window")) {
-        // myfm_file_operations_copy_async (self->file,
-        //                                  "/home/f35/Documents/misc/test/copy-to2/",
-        //                                  myfm_file_menu_get_window (self),
-        //                                  FALSE, NULL, NULL, NULL, NULL);
-        // whatever ();
-        MyFMFile *copyto2;
-        copyto2 = myfm_file_from_path ("/home/f35/Documents/misc/test/copy-to2/");
-
-        myfm_copy_operation_start_async (&self->file, 1, copyto2,
-                                         GTK_WINDOW (myfm_file_menu_get_window (self)),
-                                         NULL, NULL);
-        myfm_file_unref (copyto2);
-    }
 }
 
 static void
@@ -115,10 +101,10 @@ myfm_file_menu_on_open_with_app (GtkMenuItem *item,
 
     if (error) {
         myfm_utils_run_error_dialog (GTK_WINDOW (myfm_file_menu_get_window (self)),
-                                       "error in myfm_window when opening file(s)"
-                                       "with '%s': %s \n",
-                                       g_app_info_get_display_name (app_info),
-                                       error->message);
+                                     "error in myfm_window when opening file(s)"
+                                     "with '%s': %s \n",
+                                     g_app_info_get_display_name (app_info),
+                                     error->message);
         g_critical ("error in myfm_file_menu when opening file(s) with '%s': %s \n",
                     g_app_info_get_display_name (app_info), error->message);
         g_error_free (error);
@@ -148,10 +134,10 @@ on_app_chooser_item_activate (GtkAppChooserWidget *chooser_widget,
 
     if (error) {
         myfm_utils_run_error_dialog (GTK_WINDOW (chooser_dialog), "error \
-                                       in myfm_window when opening file(s) with \
-                                       '%s': %s \n",
-                                       g_app_info_get_display_name (app_info),
-                                       error->message);
+                                     in myfm_window when opening file(s) with \
+                                     '%s': %s \n",
+                                     g_app_info_get_display_name (app_info),
+                                     error->message);
         g_critical ("error in myfm_file_menu when opening file(s) with '%s': %s \n",
                     g_app_info_get_display_name (app_info), error->message);
         g_error_free (error);
