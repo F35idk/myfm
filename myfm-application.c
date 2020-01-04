@@ -19,6 +19,7 @@ struct _MyFMApplication {
     gboolean copy_in_progress;
     /* only one delete operation is allowed at once */
     gboolean delete_in_progress;
+    GMutex mutex;
 };
 
 G_DEFINE_TYPE (MyFMApplication, myfm_application, GTK_TYPE_APPLICATION)
@@ -110,7 +111,9 @@ myfm_application_finalize (GObject *object)
 
     self = MYFM_APPLICATION (object);
 
+    g_mutex_clear (&self->mutex);
     myfm_clipboard_free (self->file_clipboard);
+
     G_OBJECT_CLASS (myfm_application_parent_class)->finalize (object);
 }
 
@@ -125,6 +128,8 @@ myfm_application_init (MyFMApplication *self)
     self->file_clipboard = myfm_clipboard_new ();
     self->copy_in_progress = FALSE;
     self->delete_in_progress = FALSE;
+
+    g_mutex_init (&self->mutex);
 }
 
 static void

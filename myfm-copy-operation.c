@@ -6,6 +6,7 @@
 
 #include "myfm-file.h"
 #include "myfm-utils.h"
+#include "myfm-delete-operation.h"
 #include "myfm-copy-operation.h"
 #define G_LOG_DOMAIN "myfm-copy-operation"
 
@@ -204,7 +205,11 @@ copy_dir_recursive (GFile *src,
     GFileEnumerator *direnum;
     GError *error = NULL;
     MyFMDialogResponse error_response;
-  
+
+    if (merge_all || merge_once)
+        myfm_delete_operation_delete_single_sync (dest, win,
+                                                  cp_canceller);
+
     g_file_make_directory (dest, cp_canceller, &error);
 
     if (error) {
@@ -214,47 +219,45 @@ copy_dir_recursive (GFile *src,
         if (g_error_matches (error, G_IO_ERROR, G_IO_ERROR_EXISTS)) {
             if (!ignore_merges) {
                 if (!make_copy_once && !make_copy_all) {
-                    if (!merge_all && !merge_once) {
-                        error_response = run_merge_dialog ("%s", error->message);
-                        switch (error_response) {
-                            default:
-                                break;
-                            case MYFM_DIALOG_RESPONSE_CANCEL:
-                                ignore_warn_errors = TRUE;
-                                ignore_merges = TRUE;
-                                break;
-                            case MYFM_DIALOG_RESPONSE_MAKE_COPY_ONCE:
-                                g_object_ref (src);
-                                retry_copy_no_merge (src, dest, TRUE);
-                                break;
-                            case MYFM_DIALOG_RESPONSE_MAKE_COPY_ALL:
-                                make_copy_all = TRUE;
-                                g_object_ref (src);
-                                retry_copy_no_merge (src, dest, TRUE);
-                                break;
-                            case MYFM_DIALOG_RESPONSE_SKIP_MERGE_ONCE:
-                                break;
-                            case MYFM_DIALOG_RESPONSE_SKIP_ALL_MERGES:
-                                ignore_merges = TRUE;
-                                break;
-                            case MYFM_DIALOG_RESPONSE_MERGE_ONCE:
-                                /* FIXME: need to implement
-                                 * rm -rf to do this */
-                                break;
-                            case MYFM_DIALOG_RESPONSE_MERGE_ALL:
-                                merge_all = TRUE;
-                                break;
-                        }
-                    }
-                    else if (merge_all || merge_once) {
-                        /* FIXME: currently we do not have
-                         * code for recursive delete, so
-                         * overwriting directories isn't
-                         * possible to implement yet */
+                    error_response = run_merge_dialog ("%s", error->message);
+                    switch (error_response) {
+                        default:
+                            break;
+                        case MYFM_DIALOG_RESPONSE_CANCEL:
+                            ignore_warn_errors = TRUE;
+                            ignore_merges = TRUE;
+                            break;
+                        case MYFM_DIALOG_RESPONSE_MAKE_COPY_ONCE:
+                            g_object_ref (src);
+                            retry_copy_no_merge (src, dest, TRUE);
+                            break;
+                        case MYFM_DIALOG_RESPONSE_MAKE_COPY_ALL:
+                            make_copy_all = TRUE;
+                            g_object_ref (src);
+                            retry_copy_no_merge (src, dest, TRUE);
+                            break;
+                        case MYFM_DIALOG_RESPONSE_SKIP_MERGE_ONCE:
+                            break;
+                        case MYFM_DIALOG_RESPONSE_SKIP_ALL_MERGES:
+                            ignore_merges = TRUE;
+                            break;
+                        case MYFM_DIALOG_RESPONSE_MERGE_ONCE:
+                            g_object_ref (src);
+                            g_object_ref (dest);
+                            /* retry with merge_once = TRUE */
+                            copy_dir_recursive (src, dest, TRUE, FALSE);
+                            break;
+                        case MYFM_DIALOG_RESPONSE_MERGE_ALL:
+                            merge_all = TRUE;
+                            g_object_ref (src);
+                            g_object_ref (dest);
+                            copy_dir_recursive (src, dest, FALSE, FALSE);
+                            break;
                     }
                 }
                 else if (make_copy_once || make_copy_all) {
-                    g_object_ref (src); /* ref to avoid double free */
+                     /* ref to avoid double free with call to retry_copy */
+                    g_object_ref (src);
                     retry_copy_no_merge (src, dest, TRUE);
                 }
             }

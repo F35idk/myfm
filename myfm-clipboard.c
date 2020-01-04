@@ -42,7 +42,6 @@ myfm_clipboard_add_to_copied (MyFMClipBoard *self,
         myfm_file_ref (files[i]);
         g_ptr_array_add  (self->copied_files, files[i]);
     }
-
 }
 
 void

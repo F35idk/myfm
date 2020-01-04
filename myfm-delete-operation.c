@@ -13,12 +13,14 @@
  * consider refactoring */
 
 static GtkWindow *win = NULL;
-static GCancellable *del_canceller = NULL;
 static gpointer user_data = NULL;
 
 /* convenience func */
 static MyFMDialogResponse /* (gint) */
-run_error_dialog (const gchar *format_msg, ...)
+run_error_dialog (const gchar *format_msg,
+                  GtkWindow *active,
+                  GCancellable *cancellable,
+                  ...)
 {
     va_list va;
     MyFMDialogType type;
@@ -36,33 +38,37 @@ run_error_dialog (const gchar *format_msg, ...)
                             "during the delete "
                             "operation.");
 
-    return myfm_utils_run_dialog_thread (type, win,
-                                         del_canceller,
+    return myfm_utils_run_dialog_thread (type, active,
+                                         cancellable,
                                          title, primary_msg,
                                          secondary_msg);
 }
 
+/* TODO: pass GError */
 static void
-delete_recursive (GFile *file)
+delete_file_recursive (GFile *file,
+                       GtkWindow *active,
+                       GCancellable *cancellable)
 {
     GFileEnumerator *direnum;
     GError *error = NULL;
 
     direnum = g_file_enumerate_children (file, MYFM_FILE_QUERY_ATTRIBUTES,
                                          G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS,
-                                         del_canceller, NULL);
+                                         cancellable, NULL);
     /* if file is directory */
     while (direnum != NULL) {
         GFile *child = NULL;
         gboolean fail;
 
         fail = !g_file_enumerator_iterate (direnum, NULL, &child,
-                                           del_canceller, &error);
+                                           cancellable, &error);
         if (fail) {
             g_critical ("Error in myfm_delete_operation function "
-                       "'delete_recursive': %s", error->message);
+                       "'delete_file_recursive': %s", error->message);
 
-            run_error_dialog ("%s", error->message);
+            run_error_dialog ("%s", active, cancellable,
+                              error->message);
             g_object_unref (direnum);
             g_error_free (error);
             return;
@@ -72,18 +78,19 @@ delete_recursive (GFile *file)
             break;
         }
         /* recurse */
-        delete_recursive (child);
+        delete_file_recursive (child, active,
+                               cancellable);
     }
 
     if (direnum)
         g_object_unref (direnum);
 
-    g_file_delete (file, del_canceller, &error);
+    g_file_delete (file, cancellable, &error);
 
     if (error) {
         g_critical ("Error in myfm_delete_operation function "
-                   "'delete_recursive': %s", error->message);
-        run_error_dialog ("%s", error->message);
+                   "'delete_file_recursive': %s", error->message);
+        run_error_dialog ("%s", active, cancellable, error->message);
         g_error_free (error);
         return;
     }
@@ -100,13 +107,13 @@ myfm_delete_operation_thread (GTask *task, gpointer src_object,
 
     arr = task_data;
     for (int i = 0; (current = arr[i]); i ++) {
-        delete_recursive (current);
+        delete_file_recursive (current, win,
+                               cancellable);
         g_object_unref (current);
     }
 
     g_free (arr);
-    g_object_unref (del_canceller);
-    del_canceller = NULL;
+    g_object_unref (cancellable);
 
     app = MYFM_APPLICATION (gtk_window_get_application (win));
     myfm_application_set_delete_in_progress (app, FALSE);
@@ -138,6 +145,7 @@ myfm_delete_operation_start_async (MyFMFile **src_files, gint n_files,
 {
     GTask *del;
     GFile **arr;
+    GCancellable *cancellable;
     MyFMApplication *app;
 
     arr = g_malloc (sizeof (GFile *) * (n_files + 1));
@@ -149,10 +157,10 @@ myfm_delete_operation_start_async (MyFMFile **src_files, gint n_files,
     arr[n_files] = NULL;
 
     win = active;
-    del_canceller = g_cancellable_new ();
+    cancellable = g_cancellable_new ();
     user_data = data;
     app = MYFM_APPLICATION (gtk_window_get_application (active));
-    del = g_task_new (NULL, del_canceller,
+    del = g_task_new (NULL, cancellable,
                       myfm_delete_operation_callback_wrapper,
                       cb);
 
@@ -162,4 +170,14 @@ myfm_delete_operation_start_async (MyFMFile **src_files, gint n_files,
     g_task_set_task_data (del, arr, NULL);
     g_task_set_priority (del, G_PRIORITY_DEFAULT);
     g_task_run_in_thread (del, myfm_delete_operation_thread);
+}
+
+void
+myfm_delete_operation_delete_single_sync (GFile *file,
+                                          GtkWindow *active,
+                                          GCancellable *cancellable)
+{
+    /* TODO: error stuff */
+    delete_file_recursive (file, active,
+                           cancellable);
 }
