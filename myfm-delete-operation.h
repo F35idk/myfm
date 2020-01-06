@@ -12,10 +12,10 @@
 
 typedef void (*MyFMDeleteCallback)(gpointer);
 
-void myfm_delete_operation_start_async        (MyFMFile **src_files, gint n_files,
-                                               GtkWindow *active,
-                                               MyFMDeleteCallback cb, gpointer data);
-void myfm_delete_operation_delete_single_sync (GFile *file, GtkWindow *active,
-                                               GCancellable *cancellable, GError **error);
+void myfm_delete_operation_start_async   (MyFMFile **src_files, gint n_files,
+                                          GtkWindow *active, MyFMDeleteCallback cb,
+                                          gpointer data);
+void myfm_delete_operation_delete_single (GFile *file, GtkWindow *active,
+                                          GCancellable *cancellable, GError **error);
 
 #endif /* __MYFM_DELETE_OPERATION_H */

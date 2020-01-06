@@ -40,10 +40,10 @@ run_error_dialog (GtkWindow *active,
 }
 
 void
-myfm_delete_operation_delete_single_sync (GFile *file,
-                                          GtkWindow *active,
-                                          GCancellable *cancellable,
-                                          GError **error)
+myfm_delete_operation_delete_single (GFile *file,
+                                     GtkWindow *active,
+                                     GCancellable *cancellable,
+                                     GError **error)
 {
     GFileEnumerator *direnum;
 
@@ -59,7 +59,7 @@ myfm_delete_operation_delete_single_sync (GFile *file,
                                            cancellable, error);
         if (fail) {
             g_critical ("Error in myfm_delete_operation function "
-                        "'delete_single_sync': %s", (*error)->message);
+                        "'delete_single': %s", (*error)->message);
             return;
         }
         if (child == NULL) {
@@ -68,8 +68,8 @@ myfm_delete_operation_delete_single_sync (GFile *file,
         }
 
         /* recurse */
-        myfm_delete_operation_delete_single_sync (child, active,
-                                                  cancellable, error);
+        myfm_delete_operation_delete_single (child, active,
+                                             cancellable, error);
         if (*error) {
             g_object_unref (direnum);
             return;
@@ -83,7 +83,7 @@ myfm_delete_operation_delete_single_sync (GFile *file,
 
     if (*error) {
         g_critical ("Error in myfm_delete_operation function "
-                    "'delete_single_sync': %s", (*error)->message);
+                    "'delete_single': %s", (*error)->message);
         return;
     }
 }
@@ -99,10 +99,10 @@ myfm_delete_operation_thread (GTask *task, gpointer src_object,
 
     arr = task_data;
     for (int i = 0; (current = arr[i]); i ++) {
-        myfm_delete_operation_delete_single_sync (current,
-                                                  win,
-                                                  cancellable,
-                                                  &error);
+        myfm_delete_operation_delete_single (current,
+                                             win,
+                                             cancellable,
+                                             &error);
         if (error) {
             run_error_dialog (win, cancellable,
                               "%s", error->message);
