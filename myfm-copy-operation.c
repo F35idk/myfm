@@ -82,6 +82,7 @@ static void copy_file_single (GFile *src, GFile *dest,
                               gboolean merge_once,
                               gboolean make_copy_once);
 static void copy_dir_recursive (GFile *src, GFile *dest,
+                                gboolean merge_once,
                                 gboolean make_copy_once);
 
 /* appends " (copy)" to end of  dest
@@ -106,7 +107,7 @@ retry_copy_no_merge (GFile *src,
 
     if (is_dir)
         copy_dir_recursive (src, new_dest,
-                            TRUE);
+                            FALSE, TRUE);
     else
         copy_file_single (src, new_dest,
                           FALSE, TRUE);
@@ -215,6 +216,7 @@ copy_file_single (GFile *src,
 static void
 copy_dir_recursive (GFile *src,
                     GFile *dest,
+                    gboolean merge_once,
                     gboolean make_copy_once)
 {
     GFileEnumerator *direnum;
@@ -231,7 +233,26 @@ copy_dir_recursive (GFile *src,
         /* handle dir existing */
         if (g_error_matches (error, G_IO_ERROR, G_IO_ERROR_EXISTS)) {
             if (!ignore_merges) {
-                if (!make_copy_once && !make_copy_all) {
+                if (merge_all || merge_once) {
+                    /* delete dest and retry */
+                    g_debug ("merging");
+                    myfm_delete_operation_delete_single (dest, win,
+                                                         cp_canceller,
+                                                         &del_error);
+                    if (del_error) {
+                        g_critical ("Error in myfm_copy_operation function "
+                                   "'copy_dir_recursive': %s", del_error->message);
+                        /* operation will be canceled */
+                        run_fatal_err_dialog ("%s", del_error->message);
+                        g_error_free (del_error);
+                        return;
+                    }
+
+                    g_object_ref (src);
+                    g_object_ref (dest);
+                    copy_dir_recursive (src, dest, FALSE, FALSE);
+                }
+                else if (!make_copy_once && !make_copy_all) {
                     error_response = run_merge_dialog ("%s", error->message);
                     switch (error_response) {
                         default :
@@ -255,22 +276,17 @@ copy_dir_recursive (GFile *src,
                             ignore_merges = TRUE;
                             break;
                         case MYFM_DIALOG_RESPONSE_MERGE_ONCE :
-                        case MYFM_DIALOG_RESPONSE_MERGE_ALL :
-                            /* delete dest and retry */
-                            myfm_delete_operation_delete_single (dest, win,
-                                                                 cp_canceller,
-                                                                 &del_error);
-                            if (del_error) {
-                                g_critical ("Error in myfm_copy_operation function "
-                                           "'copy_dir_recursive': %s", del_error->message);
-                                /* operation will be canceled */
-                                run_fatal_err_dialog ("%s", del_error->message);
-                                g_error_free (del_error);
-                                return;
-                            }
                             g_object_ref (src);
                             g_object_ref (dest);
-                            copy_dir_recursive (src, dest, FALSE);
+                            /* retry with merge_once = TRUE */
+                            copy_dir_recursive (src, dest, TRUE, FALSE);
+                            break;
+                            break;
+                        case MYFM_DIALOG_RESPONSE_MERGE_ALL :
+                            merge_all = TRUE;
+                            g_object_ref (src);
+                            g_object_ref (dest);
+                            copy_dir_recursive (src, dest, FALSE, FALSE);
                             break;
                     }
                 }
@@ -349,7 +365,7 @@ copy_dir_recursive (GFile *src,
 
         /* recurse */
         if (child_type == G_FILE_TYPE_DIRECTORY)
-            copy_dir_recursive (child, new_dest, FALSE);
+            copy_dir_recursive (child, new_dest, FALSE, FALSE);
         else
             copy_file_single (child, new_dest, FALSE, FALSE);
     }
@@ -394,7 +410,7 @@ myfm_copy_operation_thread (GTask *task, gpointer src_object,
 
         if ((*current).type == G_FILE_TYPE_DIRECTORY)
             copy_dir_recursive ((*current).g_file, dest,
-                                FALSE);
+                                FALSE, FALSE);
         else
             copy_file_single ((*current).g_file, dest,
                               FALSE, FALSE);
