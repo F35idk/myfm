@@ -8,6 +8,7 @@
 #include "myfm-directory-view.h"
 #include "myfm-utils.h"
 #include "myfm-copy-operation.h"
+#include "myfm-move-operation.h"
 #include "myfm-delete-operation.h"
 #include "myfm-file-menu.h"
 #define G_LOG_DOMAIN "myfm-file-menu"
@@ -76,6 +77,18 @@ myfm_file_menu_on_item_activate (GtkMenuItem *item,
         myfm_delete_operation_start_async (&self->file, 1,
                                            GTK_WINDOW (myfm_file_menu_get_window (self)),
                                            NULL, NULL);
+
+    }
+    else if (!strcmp (label, "Open in New Window")) {
+        MyFMFile *copyto;
+        MyFMFile *bogaloga;
+
+        bogaloga = myfm_file_from_path ("/home/f35/Documents/misc/fm-testing/test/bogaloga");
+        copyto = myfm_file_from_path ("/home/f35/Documents/misc/fm-testing/copy-to/");
+
+        myfm_move_operation_start_async (&bogaloga, 1, copyto,
+                                         GTK_WINDOW (myfm_file_menu_get_window (self)),
+                                         NULL, NULL);
 
     }
 }
@@ -262,7 +275,7 @@ myfm_file_menu_fill (MyFMFileMenu *self)
     if (myfm_application_copy_in_progress (app)) {
         gtk_widget_set_sensitive (copy, FALSE);
         gtk_widget_set_sensitive (cut, FALSE);
-        puts ("inpr");
+        g_debug ("inpr");
     }
     myfm_file_menu_append_and_setup (self, copy);
     myfm_file_menu_append_and_setup (self, cut);

@@ -26,6 +26,25 @@ myfm_utils_new_menu_item (const gchar *label, guint keyval,
     return menu_item;
 }
 
+/* appends " (copy)" to end
+ * of file's path. used by file
+ * operations to avoid merges  */
+GFile *
+myfm_utils_new_renamed_g_file (GFile *old)
+{
+    gchar *old_path;
+    gchar *new_path;
+    GFile *new;
+
+    old_path = g_file_get_path (old);
+    new_path = g_strconcat (old_path, " (copy)", NULL);
+    new = g_file_new_for_path (new_path);
+    g_free (old_path);
+    g_free (new_path);
+
+    return new;
+}
+
 struct callback_data {
     GFileForEachFunc user_callback;
     gpointer user_data;
@@ -33,6 +52,9 @@ struct callback_data {
     int io_priority;
     GCancellable *cancellable;
 };
+
+/* NOTE: get_children and its callbacks are dead code atm,
+ * remove or switch to using it in myfm-directory-view */
 
 static const gint n_files = 32;
 
@@ -187,12 +209,17 @@ on_error_dialog_response (GtkDialog *dialog, gint response_id,
                           gpointer _data)
 {
     struct dialog_data *data;
-    GtkToggleButton *apply_all;
+    GtkToggleButton *check;
+    gboolean apply_to_all;
 
     data = _data;
-    apply_all = GTK_TOGGLE_BUTTON (data->check);
-
     g_mutex_lock (&data->mutex);
+
+    check = GTK_TOGGLE_BUTTON (data->check);
+    if (data->type != MYFM_DIALOG_TYPE_UNSKIPPABLE_ERR)
+        apply_to_all = gtk_toggle_button_get_active (check);
+    else
+        apply_to_all = FALSE;
 
     switch (response_id) {
         default :
@@ -206,27 +233,27 @@ on_error_dialog_response (GtkDialog *dialog, gint response_id,
             g_cancellable_cancel (data->cancellable);
             break;
         case 1 : /* 'Make Copy' */
-            if (gtk_toggle_button_get_active (apply_all))
+            if (apply_to_all)
                 data->response = MYFM_DIALOG_RESPONSE_MAKE_COPY_ALL;
             else
                 data->response = MYFM_DIALOG_RESPONSE_MAKE_COPY_ONCE;
             break;
         case 2 : /* 'Skip' */
             if (data->type == MYFM_DIALOG_TYPE_MERGE_CONFLICT) {
-                if (gtk_toggle_button_get_active (apply_all))
+                if (apply_to_all)
                     data->response = MYFM_DIALOG_RESPONSE_SKIP_ALL_MERGES;
                 else
                     data->response = MYFM_DIALOG_RESPONSE_SKIP_MERGE_ONCE;
             }
             else {
-                if (gtk_toggle_button_get_active (apply_all))
+                if (apply_to_all)
                     data->response = MYFM_DIALOG_RESPONSE_SKIP_ALL_ERRORS;
                 else
                     data->response = MYFM_DIALOG_RESPONSE_SKIP_ERROR_ONCE;
             }
             break;
         case 3 : /* 'Replace' */
-            if (gtk_toggle_button_get_active (apply_all))
+            if (apply_to_all)
                 data->response = MYFM_DIALOG_RESPONSE_MERGE_ALL;
             else
                 data->response = MYFM_DIALOG_RESPONSE_MERGE_ONCE;
@@ -287,29 +314,30 @@ run_dialog_main_ctx (gpointer _data)
                   data->secondary_msg, NULL);
     gtk_window_set_title (GTK_WINDOW (error_dialog), title);
 
-    if (data->type == MYFM_DIALOG_TYPE_MERGE_CONFLICT) {
-        check_label = "Apply this action to all file conflicts";
-        gtk_dialog_add_buttons (GTK_DIALOG (error_dialog), "Cancel", 0,
-                                "Make Copy", 1, "Skip", 2, "Replace", 3, NULL);
-    }
-    else {
-        check_label = "Apply this action to all errors";
-        /* add skip button (or don't) */
-        if (data->type == MYFM_DIALOG_TYPE_SKIPPABLE_ERR)
+    if (data->type != MYFM_DIALOG_TYPE_UNSKIPPABLE_ERR) {
+        if (data->type == MYFM_DIALOG_TYPE_MERGE_CONFLICT) {
+            check_label = "Apply this action to all file conflicts";
+            gtk_dialog_add_buttons (GTK_DIALOG (error_dialog), "Cancel", 0,
+                                    "Make Copy", 1, "Skip", 2, "Replace", 3, NULL);
+        }
+        else if (data->type == MYFM_DIALOG_TYPE_SKIPPABLE_ERR) {
+            check_label = "Apply this action to all errors";
             gtk_dialog_add_buttons (GTK_DIALOG (error_dialog), "Cancel", 0, "Skip",
                                     2, NULL);
-        else
-            gtk_dialog_add_buttons (GTK_DIALOG (error_dialog), "OK", 4, NULL);
+        }
+
+        msg_area = gtk_message_dialog_get_message_area (GTK_MESSAGE_DIALOG (error_dialog));
+        check = gtk_check_button_new_with_label (check_label);
+        gtk_box_pack_end (GTK_BOX (msg_area), check, FALSE, TRUE, 0);
+        gtk_widget_show (check);
+
+        data->check = check;
+        g_signal_connect (GTK_DIALOG (error_dialog), "response",
+                          G_CALLBACK (on_error_dialog_response), data);
     }
-
-    msg_area = gtk_message_dialog_get_message_area (GTK_MESSAGE_DIALOG (error_dialog));
-    check = gtk_check_button_new_with_label (check_label);
-    gtk_box_pack_end (GTK_BOX (msg_area), check, FALSE, TRUE, 0);
-    gtk_widget_show (check);
-
-    data->check = check;
-    g_signal_connect (GTK_DIALOG (error_dialog), "response",
-                      G_CALLBACK (on_error_dialog_response), data);
+    else {
+        gtk_dialog_add_buttons (GTK_DIALOG (error_dialog), "OK", 4, NULL);
+    }
 
     gtk_dialog_run (GTK_DIALOG (error_dialog));
     gtk_widget_destroy (GTK_WIDGET (error_dialog));
@@ -408,13 +436,13 @@ myfm_utils_run_skippable_err_dialog_thread (GtkWindow *active,
     va_end (va);
 
     return myfm_utils_run_dialog_thread (MYFM_DIALOG_TYPE_SKIPPABLE_ERR,
-                                        active, cancellable,
-                                        g_strdup (title),
-                                        g_strdup (primary_msg),
-                                        secondary_msg);
+                                         active, cancellable,
+                                         g_strdup (title),
+                                         g_strdup (primary_msg),
+                                         secondary_msg);
 }
 
-/* unskippable, fatal errors. will cancel
+/* for unskippable, fatal errors. will cancel
  * 'cancellable' no matter the user response */
 gint
 myfm_utils_run_unskippable_err_dialog_thread (GtkWindow *active,

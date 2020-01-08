@@ -54,5 +54,6 @@ void      myfm_utils_for_each_child                    (GFile *dir, const gchar 
                                                         GCancellable *cancellable,
                                                         gint io_priority, GFileForEachFunc func,
                                                         gpointer user_data);
+GFile     *myfm_utils_new_renamed_g_file               (GFile *old);
 
 #endif /* __MYFM_UTILS_H */
