@@ -5,14 +5,13 @@
 #include <gio/gio.h>
 
 #include "myfm-utils.h"
+#include "myfm-file-operations.h"
 #include "myfm-file-operations-private.h"
-#include "myfm-file-operations-delete.h"
-#include "myfm-file-operations-move.h"
 #define G_LOG_DOMAIN "myfm-file-operations-move"
 
 static void
 move_file_fallback (GTask *move, GFile *src,
-                    GFile *dest, _FileOpFlags *flags)
+                    GFile *dest, _MoveFlags *flags)
 {
     /* FIXME: implement fallback copy + delete code */
     /* NOTE: need to use g_file_copy_attributes () here
@@ -23,13 +22,13 @@ move_file_fallback (GTask *move, GFile *src,
 
 static void
 move_file_default (GTask *move, GFile *src,
-                   GFile *dest, _FileOpFlags *flags)
+                   GFile *dest, _MoveFlags *flags)
 {
     GError *error = NULL;
     GtkWindow *win;
     GCancellable *cancellable;
 
-    win = g_object_get_data (G_OBJECT (cp), "win");
+    win = g_object_get_data (G_OBJECT (move), "win");
     cancellable = g_task_get_cancellable (move);
 
     g_file_move (src, dest,
@@ -41,8 +40,9 @@ move_file_default (GTask *move, GFile *src,
         GError *del_error = NULL;
         MyFMDialogResponse response;
 
-        g_critical ("Error in move_files funct"
-                    "ion 'move_files_thread: %s",
+        g_critical ("Error in myfm_file_operati"
+                    "ons_move function 'move_fi"
+                    "le_default: %s",
                     error->message);
 
         switch (error->code) {
@@ -78,9 +78,7 @@ move_file_default (GTask *move, GFile *src,
                     if (flags->merge_all || flags->merge_once) {
                         /* remove dest and retry */
                         g_debug ("merging");
-                        myfm_delete_operation_delete_single (dest, win,
-                                                             cancellable,
-                                                             &del_error);
+                        _delete_file_single (dest, win, cancellable, &del_error);
                         if (del_error) {
                             /* FIXME: handle */
                             g_error_free (del_error);
@@ -96,6 +94,7 @@ move_file_default (GTask *move, GFile *src,
                         GFile *new_dest = myfm_utils_new_renamed_g_file (dest);
 
                         g_object_ref (src);
+                        flags->make_copy_once = FALSE;
                         move_file_default (move, src, new_dest, flags);
                     }
                     else { /* no flags are set */
@@ -157,11 +156,11 @@ _move_files_thread (GTask *task,
     GFile **arr;
     gchar *dest_dir_path;
     GFile *current;
-    _FileOpFlags flags;
+    _MoveFlags flags;
 
     arr = task_data;
     dest_dir_path = g_file_get_path (arr[0]);
-    flags = (_FileOpFlags) {0};
+    flags = (_MoveFlags) {0};
 
     for (int i = 1; (current = arr[i]); i ++) {
         GFile *dest;

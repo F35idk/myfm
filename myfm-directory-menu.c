@@ -7,7 +7,7 @@
 #include "myfm-window.h"
 #include "myfm-directory-view.h"
 #include "myfm-utils.h"
-#include "myfm-copy-operation.h"
+#include "myfm-file-operations.h"
 #include "myfm-directory-menu.h"
 #define G_LOG_DOMAIN "myfm-directory-menu"
 
@@ -47,9 +47,13 @@ myfm_directory_menu_on_paste_activate (GtkMenu *item,
         return;
 
     if (files_copied) {
-        myfm_copy_operation_start_async (src_files, n_files, dest_dir,
+        // myfm_copy_operation_start_async (src_files, n_files, dest_dir,
+        //                                  GTK_WINDOW (myfm_directory_menu_get_window (self)),
+        //                                  NULL, NULL);
+        myfm_file_operations_copy_async (src_files, n_files, dest_dir,
                                          GTK_WINDOW (myfm_directory_menu_get_window (self)),
                                          NULL, NULL);
+
     }
     else { /* clipboard files are cut */
 

@@ -44,12 +44,12 @@ _run_warn_err_dialog (GTask *operation,
 
     if (type == FILE_OPERATION_COPY) {
         title = "File Copy Error";
-        primary = "There was an error during"
+        primary = "There was an error during "
                   "the copy operation.";
     }
     else if (type == FILE_OPERATION_MOVE) {
         title = "File Move Error";
-        primary = "There was an error during"
+        primary = "There was an error during "
                   "the move operation.";
     }
     else {
@@ -79,17 +79,17 @@ _run_fatal_err_dialog (GTask *operation,
 
     if (type == FILE_OPERATION_COPY) {
         title = "File Copy Error";
-        primary = "There was a fatal error"
+        primary = "There was a fatal error "
                   "during the copy operation.";
     }
     else if (type == FILE_OPERATION_MOVE) {
         title = "File Move Error";
-        primary = "There was a fatal error"
+        primary = "There was a fatal error "
                   "during the move operation.";
     }
     else {
         title = "File Delete Error";
-        primary = "There was a fatal error"
+        primary = "There was a fatal error "
                   "during the delete operation.";
     }
 
@@ -152,7 +152,6 @@ myfm_file_operations_move_async (MyFMFile **src_files, gint n_files,
                                  MyFMFileOpCallback cb, gpointer data)
 {
     GTask *move;
-    GCancellable *cancellable;
     MyFMApplication *app;
     GFile **arr;
 
@@ -172,8 +171,8 @@ myfm_file_operations_move_async (MyFMFile **src_files, gint n_files,
     move = g_task_new (NULL, g_cancellable_new (),
                      _move_files_finish, cb);
 
-    g_object_set_data (G_OBJECT (cp), "win", active);
-    g_object_set_data (G_OBJECT (cp), "user_data", data);
+    g_object_set_data (G_OBJECT (move), "win", active);
+    g_object_set_data (G_OBJECT (move), "user_data", data);
 
     /* myfm_application_set_move_in_progress (app, TRUE); */
 
@@ -191,7 +190,6 @@ myfm_file_operations_delete_async (MyFMFile **src_files, gint n_files,
 {
     GTask *del;
     GFile **arr;
-    GCancellable *cancellable;
     MyFMApplication *app;
 
     app = MYFM_APPLICATION (gtk_window_get_application (active));
@@ -210,8 +208,8 @@ myfm_file_operations_delete_async (MyFMFile **src_files, gint n_files,
                       _delete_files_finish,
                       cb);
 
-    g_object_set_data (G_OBJECT (cp), "win", active);
-    g_object_set_data (G_OBJECT (cp), "user_data", data);
+    g_object_set_data (G_OBJECT (del), "win", active);
+    g_object_set_data (G_OBJECT (del), "user_data", data);
 
     myfm_application_set_delete_in_progress (app, TRUE);
 

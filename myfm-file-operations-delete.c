@@ -5,8 +5,8 @@
 #include <gio/gio.h>
 
 #include "myfm-utils.h"
+#include "myfm-file-operations.h"
 #include "myfm-file-operations-private.h"
-#include "myfm-file-operations-delete.h"
 #define G_LOG_DOMAIN "myfm-file-operations-delete"
 
 void
@@ -28,8 +28,8 @@ _delete_file_single (GFile *file,
         fail = !g_file_enumerator_iterate (direnum, NULL, &child,
                                            cancellable, error);
         if (fail) {
-            g_critical ("Error in myfm_delete_operation function "
-                        "'delete_single': %s", (*error)->message);
+            g_critical ("Error in myfm_file_operations_delete function "
+                        "'_delete_file_single': %s", (*error)->message);
             return;
         }
         if (child == NULL) {
@@ -38,8 +38,7 @@ _delete_file_single (GFile *file,
         }
 
         /* recurse */
-        myfm_delete_operation_delete_single (child, active,
-                                             cancellable, error);
+        _delete_file_single (child, active, cancellable, error);
         if (*error) {
             g_object_unref (direnum);
             return;
@@ -52,8 +51,8 @@ _delete_file_single (GFile *file,
     g_file_delete (file, cancellable, error);
 
     if (*error) {
-        g_critical ("Error in myfm_delete_operation function "
-                    "'delete_single': %s", (*error)->message);
+        g_critical ("Error in myfm_file_operations_delete function "
+                    "'_delete_file_single': %s", (*error)->message);
         return;
     }
 }
@@ -68,14 +67,11 @@ _delete_files_thread (GTask *task, gpointer src_object,
     GError *error = NULL;
     GtkWindow *win;
 
-    win = g_object_get_data (G_OBJECT (cp), "win");
+    win = g_object_get_data (G_OBJECT (task), "win");
     arr = task_data;
 
     for (int i = 0; (current = arr[i]); i ++) {
-        myfm_delete_operation_delete_single (current,
-                                             win,
-                                             cancellable,
-                                             &error);
+        _delete_file_single (current, win, cancellable,  &error);
         if (error) {
             _run_fatal_err_dialog (task, FILE_OPERATION_DELETE,
                                    "%s", error->message);
@@ -94,7 +90,7 @@ _delete_files_finish (GObject *src_object,
                       GAsyncResult *res,
                       gpointer _cb)
 {
-    MyFMDeleteCallback cb;
+    MyFMFileOpCallback cb;
     MyFMApplication *app;
     GCancellable *cancellable;
     gpointer user_data;

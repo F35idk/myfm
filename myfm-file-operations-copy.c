@@ -6,38 +6,32 @@
 
 #include "myfm-file.h"
 #include "myfm-utils.h"
-#include "myfm-file-operations-delete.h"
+#include "myfm-file-operations.h"
 #include "myfm-file-operations-private.h"
 #define G_LOG_DOMAIN "myfm-file-operations-copy"
 
-/* flags checked during copy operation
- * (set when handling error responses) */
-static gboolean ignore_warn_errors = FALSE;
-static gboolean ignore_merges = FALSE;
-static gboolean make_copy_all = FALSE;
-static gboolean merge_all = FALSE;
-
 static void
-handle_warn_error (MyFMDialogResponse response)
+handle_warn_error (MyFMDialogResponse response,
+                   _CopyFlags *flags)
 {
     switch (response) {
         default : /* do nothing if skip_once */
             break;
         case MYFM_DIALOG_RESPONSE_SKIP_ALL_ERRORS :
-            ignore_warn_errors = TRUE;
+            flags->ignore_warn_errors = TRUE;
             break;
         case MYFM_DIALOG_RESPONSE_CANCEL :
-            ignore_warn_errors = TRUE;
-            ignore_merges = TRUE;
+            flags->ignore_warn_errors = TRUE;
+            flags->ignore_merges = TRUE;
             break;
     }
 }
 
 /* forward (backward?) declarations for retry_copy_no_merge () */
-static void copy_file_single (GTask *cp, GFile *src, GFile *dest,
-                              gboolean merge_once, gboolean make_copy_once);
-static void copy_dir_recursive (GTask *cp, GFile *src, GFile *dest,
-                                gboolean merge_once, gboolean make_copy_once);
+static void copy_file_single (GTask *cp, GFile *src, GFile *dest, gboolean merge_once,
+                              gboolean make_copy_once, _CopyFlags *flags);
+static void copy_dir_recursive (GTask *cp, GFile *src, GFile *dest, gboolean merge_once,
+                                gboolean make_copy_once, _CopyFlags *Flags);
 
 /* appends " (copy)" to end of  dest
  * file before copying. unrefs 'src'
@@ -48,16 +42,17 @@ static void
 retry_copy_no_merge (GTask *cp,
                      GFile *src,
                      GFile *dest,
-                     gboolean is_dir)
+                     gboolean is_dir,
+                     _CopyFlags *flags)
 {
     GFile *new_dest = myfm_utils_new_renamed_g_file (dest);
 
     if (is_dir)
         copy_dir_recursive (cp, src, new_dest,
-                            FALSE, TRUE);
+                            FALSE, TRUE, flags);
     else
         copy_file_single (cp, src, new_dest,
-                          FALSE, TRUE);
+                          FALSE, TRUE, flags);
 }
 
 static void
@@ -65,7 +60,8 @@ copy_file_single (GTask *cp,
                   GFile *src,
                   GFile *dest,
                   gboolean merge_once,
-                  gboolean make_copy_once)
+                  gboolean make_copy_once,
+                  _CopyFlags *flags)
 {
     GError *error = NULL;
     MyFMDialogResponse error_response;
@@ -73,20 +69,20 @@ copy_file_single (GTask *cp,
 
     cancellable = g_task_get_cancellable (cp);
 
-    if (merge_once || merge_all) {
+    if (merge_once || flags->merge_all) {
         /* copy w/ overwrite */
         g_file_copy (src, dest,
                      G_FILE_COPY_NOFOLLOW_SYMLINKS | G_FILE_COPY_OVERWRITE,
                      cancellable, NULL, NULL, &error);
 
         if (error) {
-            g_critical ("Error in myfm_copy_operation function "
-                       "'copy_file_single: %s", error->message);
+            g_critical ("Error in myfm_file_operations_copy function "
+                       "'copy_file_single': %s", error->message);
 
-            if (!ignore_warn_errors) {
+            if (!flags->ignore_warn_errors) {
                 error_response = _run_warn_err_dialog (cp, FILE_OPERATION_COPY,
                                                        "%s", error->message);
-                handle_warn_error (error_response);
+                handle_warn_error (error_response, flags);
             }
             g_error_free (error);
             g_object_unref (dest);
@@ -101,64 +97,66 @@ copy_file_single (GTask *cp,
                      cancellable, NULL, NULL, &error);
 
         if (error) {
-            g_critical ("Error in myfm_copy_operation function "
-                       "'copy_file_single: %s", error->message);
+            g_critical ("Error in myfm_file_operations_copy function "
+                       "'copy_file_single': %s", error->message);
             g_debug ("error in copy w/o overwrite");
             /* handle the file already existing */
             if (g_error_matches (error, G_IO_ERROR, G_IO_ERROR_EXISTS)) {
-                if (!ignore_merges) {
-                    if (!make_copy_all && !make_copy_once) {
+                if (!flags->ignore_merges) {
+                    if (!flags->make_copy_all && !make_copy_once) {
                         /* run dialog and handle user response */
                         error_response = _run_merge_dialog (cp, "%s", error->message);
                         switch (error_response) {
                             default :
                                 break;
                             case MYFM_DIALOG_RESPONSE_CANCEL :
-                                ignore_warn_errors = TRUE;
-                                ignore_merges = TRUE;
+                                flags->ignore_warn_errors = TRUE;
+                                flags->ignore_merges = TRUE;
                                 break;
                             case MYFM_DIALOG_RESPONSE_MAKE_COPY_ONCE :
                                 g_object_ref (src);
-                                retry_copy_no_merge (cp, src, dest, FALSE);
+                                retry_copy_no_merge (cp, src, dest,
+                                                     FALSE, flags);
                                 break;
                             case MYFM_DIALOG_RESPONSE_MAKE_COPY_ALL :
-                                make_copy_all = TRUE;
+                                flags->make_copy_all = TRUE;
                                 g_object_ref (src);
-                                retry_copy_no_merge (cp, src, dest, FALSE);
+                                retry_copy_no_merge (cp, src, dest,
+                                                     FALSE, flags);
                                 break;
                             case MYFM_DIALOG_RESPONSE_SKIP_MERGE_ONCE :
                                 break;
                             case MYFM_DIALOG_RESPONSE_SKIP_ALL_MERGES :
-                                ignore_merges = TRUE;
+                                flags->ignore_merges = TRUE;
                                 break;
                             case MYFM_DIALOG_RESPONSE_MERGE_ONCE :
                                 /* retry and pass merge_once = TRUE */
                                 g_object_ref (src);
                                 g_object_ref (dest);
                                 copy_file_single (cp, src, dest,
-                                                  TRUE, FALSE);
+                                                  TRUE, FALSE, flags);
                                 break;
                             case MYFM_DIALOG_RESPONSE_MERGE_ALL :
                                 /* set merge_all = TRUE and retry */
-                                merge_all = TRUE;
+                                flags->merge_all = TRUE;
                                 g_object_ref (src);
                                 g_object_ref (dest);
                                 copy_file_single (cp, src, dest,
-                                                  FALSE, FALSE);
+                                                  FALSE, FALSE, flags);
                                 break;
                         }
                     }
-                    else if (make_copy_all || make_copy_once) {
+                    else if (flags->make_copy_all || make_copy_once) {
                         g_object_ref (src);
-                        retry_copy_no_merge (cp, src, dest, FALSE);
+                        retry_copy_no_merge (cp, src, dest, FALSE, flags);
                     }
                 }
             }
             else {
-                if (!ignore_warn_errors) {
+                if (!flags->ignore_warn_errors) {
                     error_response = _run_warn_err_dialog (cp, FILE_OPERATION_COPY,
                                                            "%s", error->message);
-                    handle_warn_error (error_response);
+                    handle_warn_error (error_response, flags);
                 }
             }
             g_error_free (error);
@@ -173,7 +171,8 @@ copy_dir_recursive (GTask *cp,
                     GFile *src,
                     GFile *dest,
                     gboolean merge_once,
-                    gboolean make_copy_once)
+                    gboolean make_copy_once,
+                    _CopyFlags *flags)
 {
     GFileEnumerator *direnum;
     MyFMDialogResponse error_response;
@@ -189,19 +188,17 @@ copy_dir_recursive (GTask *cp,
     if (error) {
         GError *del_error = NULL;
 
-        g_critical ("Error in myfm_copy_operation function "
-                   "'copy_dir_recursive: %s", error->message);
+        g_critical ("Error in myfm_file_operations_copy function "
+                   "'copy_dir_recursive': %s", error->message);
         /* handle dir existing */
         if (g_error_matches (error, G_IO_ERROR, G_IO_ERROR_EXISTS)) {
-            if (!ignore_merges) {
-                if (merge_all || merge_once) {
+            if (!flags->ignore_merges) {
+                if (flags->merge_all || merge_once) {
                     /* delete dest and retry */
                     g_debug ("merging");
-                    myfm_delete_operation_delete_single (dest, win,
-                                                         cancellable,
-                                                         &del_error);
+                    _delete_file_single (dest, win,cancellable, &del_error);
                     if (del_error) {
-                        g_critical ("Error in myfm_copy_operation function "
+                        g_critical ("Error in myfm_file_operations_copy function "
                                    "'copy_dir_recursive': %s", del_error->message);
                         /* operation will be canceled */
                         _run_fatal_err_dialog (cp, FILE_OPERATION_COPY,
@@ -211,13 +208,14 @@ copy_dir_recursive (GTask *cp,
                     else {
                         g_object_ref (src);
                         g_object_ref (dest);
-                        copy_dir_recursive (cp, src, dest, FALSE, FALSE);
+                        copy_dir_recursive (cp, src, dest,
+                                            FALSE, FALSE, flags);
                     }
                 }
-                else if (make_copy_once || make_copy_all) {
+                else if (make_copy_once || flags->make_copy_all) {
                      /* ref to avoid double free with call to retry_copy */
                     g_object_ref (src);
-                    retry_copy_no_merge (cp, src, dest, TRUE);
+                    retry_copy_no_merge (cp, src, dest, TRUE, flags);
                 }
                 else { /* no flags are set */
                     error_response = _run_merge_dialog (cp, "%s", error->message);
@@ -225,45 +223,49 @@ copy_dir_recursive (GTask *cp,
                         default :
                             break;
                         case MYFM_DIALOG_RESPONSE_CANCEL :
-                            ignore_warn_errors = TRUE;
-                            ignore_merges = TRUE;
+                            flags->ignore_warn_errors = TRUE;
+                            flags->ignore_merges = TRUE;
                             break;
                         case MYFM_DIALOG_RESPONSE_MAKE_COPY_ONCE :
                             g_object_ref (src);
-                            retry_copy_no_merge (cp, src, dest, TRUE);
+                            retry_copy_no_merge (cp, src, dest,
+                                                 TRUE, flags);
                             break;
                         case MYFM_DIALOG_RESPONSE_MAKE_COPY_ALL :
-                            make_copy_all = TRUE;
+                            flags->make_copy_all = TRUE;
                             g_object_ref (src);
-                            retry_copy_no_merge (cp, src, dest, TRUE);
+                            retry_copy_no_merge (cp, src, dest,
+                                                 TRUE, flags);
                             break;
                         case MYFM_DIALOG_RESPONSE_SKIP_MERGE_ONCE :
                             break;
                         case MYFM_DIALOG_RESPONSE_SKIP_ALL_MERGES :
-                            ignore_merges = TRUE;
+                            flags-> ignore_merges = TRUE;
                             break;
                         case MYFM_DIALOG_RESPONSE_MERGE_ONCE :
                             g_object_ref (src);
                             g_object_ref (dest);
                             /* retry with merge_once = TRUE */
-                            copy_dir_recursive (cp, src, dest, TRUE, FALSE);
+                            copy_dir_recursive (cp, src, dest,
+                                                TRUE, FALSE, flags);
                             break;
                             break;
                         case MYFM_DIALOG_RESPONSE_MERGE_ALL :
-                            merge_all = TRUE;
+                            flags->merge_all = TRUE;
                             g_object_ref (src);
                             g_object_ref (dest);
-                            copy_dir_recursive (cp, src, dest, FALSE, FALSE);
+                            copy_dir_recursive (cp, src, dest,
+                                                FALSE, FALSE, flags);
                             break;
                     }
                 }
             }
         }
         else {
-            if (!ignore_warn_errors) {
+            if (!flags->ignore_warn_errors) {
                 error_response = _run_warn_err_dialog (cp, FILE_OPERATION_COPY,
                                                        "%s", error->message);
-                handle_warn_error (error_response);
+                handle_warn_error (error_response, flags);
             }
         }
         g_error_free (error);
@@ -276,12 +278,12 @@ copy_dir_recursive (GTask *cp,
                                          G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS,
                                          cancellable, &error);
     if (error) {
-        g_critical ("Error in myfm_copy_operation function "
-                   "'copy_dir_recursive: %s", error->message);
+        g_critical ("Error in myfm_file_operations_copy function "
+                   "'copy_dir_recursive': %s", error->message);
 
         error_response = _run_warn_err_dialog (cp, FILE_OPERATION_COPY,
                                                "%s", error->message);
-        handle_warn_error (error_response);
+        handle_warn_error (error_response, flags);
         g_error_free (error);
         /* g_object_unref (direnum); */ /* (direnum is NULL) */
         g_object_unref (dest);
@@ -303,15 +305,15 @@ copy_dir_recursive (GTask *cp,
                                            &child, cancellable,
                                            &error2);
         if (fail) {
-            g_critical ("Error in myfm_copy_operation function "
+            g_critical ("Error in myfm_file_operations_copy function "
                        "'copy_dir_recursive': %s", error->message);
 
             error_response = _run_warn_err_dialog (cp, FILE_OPERATION_COPY,
                                                    "%s", error->message);
-            handle_warn_error (error_response);
+            handle_warn_error (error_response, flags);
             g_error_free (error2);
             g_object_unref (direnum);
-            return; /* NOTE: continue instead? probably not */
+            return;
         }
         if (child_info == NULL) {
             break;
@@ -331,10 +333,10 @@ copy_dir_recursive (GTask *cp,
         /* recurse */
         if (child_type == G_FILE_TYPE_DIRECTORY)
             copy_dir_recursive (cp, child, new_dest,
-                                FALSE, FALSE);
+                                FALSE, FALSE, flags);
         else
             copy_file_single (cp, child, new_dest,
-                              FALSE, FALSE);
+                              FALSE, FALSE, flags);
     }
 
     g_object_unref (dest);
@@ -348,17 +350,20 @@ _copy_files_thread (GTask *task,
                     gpointer task_data,
                     GCancellable *cancellable)
 {
-    struct file_w_type *arr;
+    struct _file_w_type *arr;
     GFile *dest_dir;
     gchar *dest_dir_path;
+    _CopyFlags flags;
 
-    arr = (struct file_w_type *) task_data;
+    flags = (_CopyFlags) {0};
+    arr = (struct _file_w_type *) task_data;
     dest_dir = arr[0].g_file;
     dest_dir_path = g_file_get_path (dest_dir);
+   
     g_object_unref (dest_dir);
 
     /* last struct element has g_file = NULL */
-    struct file_w_type *current;
+    struct _file_w_type *current;
     for (current = arr + 1; (*current).g_file; current++) {
         gchar *src_basename;
         GFile *dest;
@@ -371,10 +376,10 @@ _copy_files_thread (GTask *task,
 
         if ((*current).type == G_FILE_TYPE_DIRECTORY)
             copy_dir_recursive (task, (*current).g_file,
-                                dest, FALSE, FALSE);
+                                dest, FALSE, FALSE, &flags);
         else
             copy_file_single (task, (*current).g_file,
-                              dest, FALSE, FALSE);
+                              dest, FALSE, FALSE, &flags);
     }
     g_free (dest_dir_path);
     g_free (arr);
@@ -408,10 +413,4 @@ _copy_files_finish (GObject *src_object,
     myfm_application_set_copy_in_progress (app, FALSE);
     g_object_unref (cancellable);
     g_object_unref (res);
-
-    /* reset flags/statics */
-    ignore_warn_errors = FALSE;
-    ignore_merges = FALSE;
-    make_copy_all = FALSE;
-    merge_all = FALSE;
 }

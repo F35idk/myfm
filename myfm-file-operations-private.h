@@ -10,12 +10,11 @@
 #include "myfm-utils.h"
 #include "myfm-file.h"
 
-/* TODO: make our file-op flags a combinable
- * bitflag enum instead of this bool struct.
- * then we could return them directly from
- * our convenience dialog functions and thus
- * avoid having to manually set them every
- * time we handle dialog responses. */
+/* TODO: make our copy and move
+ * flags a single, combinable
+ * bitflag enum so we could
+ * return them directly
+ * from our dialog functions */
 typedef struct {
     gboolean use_fallback;
     gboolean merge_all;
@@ -24,7 +23,14 @@ typedef struct {
     gboolean make_copy_all;
     gboolean ignore_merges;
     gboolean ignore_warn_errors;
-} _FileOpFlags;
+} _MoveFlags;
+
+typedef struct {
+    gboolean merge_all;
+    gboolean make_copy_all;
+    gboolean ignore_merges;
+    gboolean ignore_warn_errors;
+} _CopyFlags;
 
 typedef enum {
     FILE_OPERATION_COPY,
@@ -39,10 +45,6 @@ struct _file_w_type {
     GFile *g_file;
     GFileType type;
 };
-
-/* FIXME: don't declare this here */
-typedef void (*MyFMFileOpCallback)(gpointer);
-
 
 MyFMDialogResponse _run_merge_dialog     (GTask *operation,
                                           const gchar *format_msg, ...);
