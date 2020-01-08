@@ -91,7 +91,6 @@ _delete_files_finish (GObject *src_object,
                       gpointer _cb)
 {
     MyFMFileOpCallback cb;
-    MyFMApplication *app;
     GCancellable *cancellable;
     gpointer user_data;
     GtkWindow *win;
@@ -103,9 +102,6 @@ _delete_files_finish (GObject *src_object,
 
     if (cb)
         cb (user_data);
-
-    app = MYFM_APPLICATION (gtk_window_get_application (win));
-    myfm_application_set_delete_in_progress (app, FALSE);
 
     cancellable = g_task_get_cancellable (G_TASK (res));
     g_object_unref (cancellable);

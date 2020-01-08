@@ -15,10 +15,6 @@ struct _MyFMApplication {
     GtkApplication parent_instance;
     GtkIconSize icon_size; /* TODO: make configurable */
     MyFMClipBoard *file_clipboard;
-    /* only one copy operation is allowed at once */
-    gboolean copy_in_progress;
-    /* only one delete operation is allowed at once */
-    gboolean delete_in_progress;
 };
 
 G_DEFINE_TYPE (MyFMApplication, myfm_application, GTK_TYPE_APPLICATION)
@@ -27,32 +23,6 @@ GtkIconSize
 myfm_application_get_icon_size (MyFMApplication *self)
 {
     return self->icon_size;
-}
-
-gboolean
-myfm_application_copy_in_progress (MyFMApplication *self)
-{
-    return self->copy_in_progress;
-}
-
-void
-myfm_application_set_copy_in_progress (MyFMApplication *self,
-                                       gboolean in_progress)
-{
-    self->copy_in_progress = in_progress;
-}
-
-gboolean
-myfm_application_delete_in_progress (MyFMApplication *self)
-{
-    return self->delete_in_progress;
-}
-
-void
-myfm_application_set_delete_in_progress (MyFMApplication *self,
-                                         gboolean in_progress)
-{
-    self->delete_in_progress = in_progress;
 }
 
 MyFMClipBoard *
@@ -124,8 +94,6 @@ myfm_application_init (MyFMApplication *self)
      * gtk_icon_theme when this is needed in the future */
     self->icon_size = gtk_icon_size_register ("default_icon_size", 20, 20);
     self->file_clipboard = myfm_clipboard_new ();
-    self->copy_in_progress = FALSE;
-    self->delete_in_progress = FALSE;
 }
 
 static void

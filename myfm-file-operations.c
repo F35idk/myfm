@@ -106,11 +106,6 @@ myfm_file_operations_copy_async (MyFMFile **src_files, gint n_files,
     GTask *cp;
     struct _file_w_type *arr; /* array to pass to our g_thread_func */
     GFile *g_dest;
-    MyFMApplication *app;
-
-    app = MYFM_APPLICATION (gtk_window_get_application (active));
-    g_return_if_fail (!myfm_application_copy_in_progress (app));
-    g_return_if_fail (active != NULL);
 
     arr = g_malloc (sizeof (struct _file_w_type) * (n_files + 2));
     g_dest = g_file_dup (myfm_file_get_g_file (dest_dir));
@@ -137,9 +132,6 @@ myfm_file_operations_copy_async (MyFMFile **src_files, gint n_files,
 
     g_object_set_data (G_OBJECT (cp), "win", active);
     g_object_set_data (G_OBJECT (cp), "user_data", data);
-
-    myfm_application_set_copy_in_progress (app, TRUE);
-
     g_task_set_task_data (cp, arr, NULL);
     g_task_set_priority (cp, G_PRIORITY_DEFAULT); /* NOTE: redundant */
     g_task_run_in_thread (cp, _copy_files_thread);
@@ -156,7 +148,6 @@ myfm_file_operations_move_async (MyFMFile **src_files, gint n_files,
     GFile **arr;
 
     app = MYFM_APPLICATION (gtk_window_get_application (active));
-    /* g_return_if_fail (!myfm_application_move_in_progress (app)); */
     g_return_if_fail (active != NULL);
 
     arr = g_malloc (sizeof (GFile *) * (n_files + 2));
@@ -173,9 +164,6 @@ myfm_file_operations_move_async (MyFMFile **src_files, gint n_files,
 
     g_object_set_data (G_OBJECT (move), "win", active);
     g_object_set_data (G_OBJECT (move), "user_data", data);
-
-    /* myfm_application_set_move_in_progress (app, TRUE); */
-
     g_task_set_task_data (move, arr, NULL);
     g_task_set_priority (move, G_PRIORITY_DEFAULT);
     g_task_run_in_thread (move, _move_files_thread);
@@ -190,11 +178,6 @@ myfm_file_operations_delete_async (MyFMFile **src_files, gint n_files,
 {
     GTask *del;
     GFile **arr;
-    MyFMApplication *app;
-
-    app = MYFM_APPLICATION (gtk_window_get_application (active));
-    g_return_if_fail (!myfm_application_delete_in_progress (app));
-    g_return_if_fail (active != NULL);
 
     arr = g_malloc (sizeof (GFile *) * (n_files + 1));
 
@@ -210,9 +193,6 @@ myfm_file_operations_delete_async (MyFMFile **src_files, gint n_files,
 
     g_object_set_data (G_OBJECT (del), "win", active);
     g_object_set_data (G_OBJECT (del), "user_data", data);
-
-    myfm_application_set_delete_in_progress (app, TRUE);
-
     g_task_set_task_data (del, arr, NULL);
     g_task_set_priority (del, G_PRIORITY_DEFAULT);
     g_task_run_in_thread (del, _delete_files_thread);

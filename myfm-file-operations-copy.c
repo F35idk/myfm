@@ -395,7 +395,6 @@ _copy_files_finish (GObject *src_object,
                     GAsyncResult *res,
                     gpointer _cb)
 {
-    MyFMApplication *app;
     MyFMFileOpCallback cb;
     GCancellable *cancellable;
     gpointer user_data;
@@ -409,8 +408,6 @@ _copy_files_finish (GObject *src_object,
     if (cb)
         cb (user_data);
 
-    app = MYFM_APPLICATION (gtk_window_get_application (win));
-    myfm_application_set_copy_in_progress (app, FALSE);
     g_object_unref (cancellable);
     g_object_unref (res);
 }
