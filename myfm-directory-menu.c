@@ -174,8 +174,6 @@ myfm_directory_menu_fill (MyFMDirectoryMenu *self)
 
     paste_item = myfm_utils_new_menu_item ("Paste", 0, 0);
     gtk_menu_shell_append (GTK_MENU_SHELL (self), paste_item);
-    if (myfm_application_copy_in_progress (app))
-        gtk_widget_set_sensitive (paste_item, FALSE);
     gtk_widget_show (paste_item);
     g_signal_connect (GTK_MENU_ITEM (paste_item), "activate",
                       myfm_directory_menu_on_paste_activate, self);

@@ -268,11 +268,7 @@ myfm_file_menu_fill (MyFMFileMenu *self)
 
     copy = myfm_utils_new_menu_item ("Copy", 0, 0);
     cut = myfm_utils_new_menu_item ("Cut", 0, 0);
-    if (myfm_application_copy_in_progress (app)) {
-        gtk_widget_set_sensitive (copy, FALSE);
-        gtk_widget_set_sensitive (cut, FALSE);
-        g_debug ("inpr");
-    }
+
     myfm_file_menu_append_and_setup (self, copy);
     myfm_file_menu_append_and_setup (self, cut);
 
