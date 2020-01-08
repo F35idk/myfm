@@ -9,6 +9,7 @@
 #include "myfm-file-operations.h"
 #define G_LOG_DOMAIN "myfm-file-operations"
 
+/* dialog functions used in copy, delete and move files */
 MyFMDialogResponse /* (gint) */
 _run_merge_dialog (GTask *operation,
                    const gchar *format_msg,
@@ -98,6 +99,27 @@ _run_fatal_err_dialog (GTask *operation,
                                                           format_msg, va);
 }
 
+static GTask *
+new_file_op_task (gpointer files,
+                  GAsyncReadyCallback cb,
+                  GtkWindow *active,
+                  MyFMFileOpCallback user_cb,
+                  gpointer user_data)
+
+{
+    GTask *task;
+
+    task = g_task_new (NULL, g_cancellable_new (),
+                       cb, user_cb);
+
+    g_task_set_task_data (task, files, NULL);
+    g_object_set_data (G_OBJECT (task), "win", active);
+    g_object_set_data (G_OBJECT (task), "user_data", user_data);
+    g_task_set_priority (task, G_PRIORITY_DEFAULT); /* NOTE: redundant */
+
+    return task;
+}
+
 void
 myfm_file_operations_copy_async (MyFMFile **src_files, gint n_files,
                                  MyFMFile *dest_dir, GtkWindow *active,
@@ -106,6 +128,8 @@ myfm_file_operations_copy_async (MyFMFile **src_files, gint n_files,
     GTask *cp;
     struct _file_w_type *arr; /* array to pass to our g_thread_func */
     GFile *g_dest;
+
+    g_return_if_fail (active != NULL);
 
     arr = g_malloc (sizeof (struct _file_w_type) * (n_files + 2));
     g_dest = g_file_dup (myfm_file_get_g_file (dest_dir));
@@ -124,18 +148,13 @@ myfm_file_operations_copy_async (MyFMFile **src_files, gint n_files,
         ft = (struct _file_w_type) {dup, type};
         arr[i] = ft;
     }
+
     /* 'NULL'-terminate array */
     arr[n_files + 1] = (struct _file_w_type) {NULL, 0};
+    cp = new_file_op_task (arr, _copy_files_finish,
+                           active, cb, data);
 
-    cp = g_task_new (NULL, g_cancellable_new (),
-                     _copy_files_finish, cb);
-
-    g_object_set_data (G_OBJECT (cp), "win", active);
-    g_object_set_data (G_OBJECT (cp), "user_data", data);
-    g_task_set_task_data (cp, arr, NULL);
-    g_task_set_priority (cp, G_PRIORITY_DEFAULT); /* NOTE: redundant */
     g_task_run_in_thread (cp, _copy_files_thread);
-
 }
 
 void
@@ -144,10 +163,8 @@ myfm_file_operations_move_async (MyFMFile **src_files, gint n_files,
                                  MyFMFileOpCallback cb, gpointer data)
 {
     GTask *move;
-    MyFMApplication *app;
     GFile **arr;
 
-    app = MYFM_APPLICATION (gtk_window_get_application (active));
     g_return_if_fail (active != NULL);
 
     arr = g_malloc (sizeof (GFile *) * (n_files + 2));
@@ -158,14 +175,9 @@ myfm_file_operations_move_async (MyFMFile **src_files, gint n_files,
 
     /* NULL-terminate */
     arr[n_files + 1] = NULL;
+    move = new_file_op_task (arr, _move_files_finish,
+                             active, cb, data);
 
-    move = g_task_new (NULL, g_cancellable_new (),
-                     _move_files_finish, cb);
-
-    g_object_set_data (G_OBJECT (move), "win", active);
-    g_object_set_data (G_OBJECT (move), "user_data", data);
-    g_task_set_task_data (move, arr, NULL);
-    g_task_set_priority (move, G_PRIORITY_DEFAULT);
     g_task_run_in_thread (move, _move_files_thread);
 }
 
@@ -179,6 +191,8 @@ myfm_file_operations_delete_async (MyFMFile **src_files, gint n_files,
     GTask *del;
     GFile **arr;
 
+    g_return_if_fail (active != NULL);
+
     arr = g_malloc (sizeof (GFile *) * (n_files + 1));
 
     for (int i = 0; i < n_files; i ++)
@@ -186,14 +200,8 @@ myfm_file_operations_delete_async (MyFMFile **src_files, gint n_files,
 
     /* NULL-terminate */
     arr[n_files] = NULL;
+    del = new_file_op_task (arr, _delete_files_finish,
+                            active, cb, data);
 
-    del = g_task_new (NULL, g_cancellable_new (),
-                      _delete_files_finish,
-                      cb);
-
-    g_object_set_data (G_OBJECT (del), "win", active);
-    g_object_set_data (G_OBJECT (del), "user_data", data);
-    g_task_set_task_data (del, arr, NULL);
-    g_task_set_priority (del, G_PRIORITY_DEFAULT);
     g_task_run_in_thread (del, _delete_files_thread);
 }
