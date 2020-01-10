@@ -71,21 +71,12 @@ myfm_file_menu_on_item_activate (GtkMenuItem *item,
         myfm_clipboard_add_to_copied (cboard, &self->file, 1);
     }
     else if (!strcmp (label, "Delete")) {
-
         myfm_file_operations_delete_async (&self->file, 1,
                                            GTK_WINDOW (myfm_file_menu_get_window (self)),
                                            NULL, NULL);
     }
     else if (!strcmp (label, "Open in New Window")) {
-        MyFMFile *copyto;
-        MyFMFile *bogaloga;
-
-        bogaloga = myfm_file_from_path ("/home/f35/Documents/misc/fm-testing/test/bogaloga");
-        copyto = myfm_file_from_path ("/home/f35/Documents/misc/fm-testing/copy-to/");
-
-        myfm_file_operations_move_async (&bogaloga, 1, copyto,
-                                         GTK_WINDOW (myfm_file_menu_get_window (self)),
-                                         NULL, NULL);
+        /* FIXME: implement */
     }
 }
 

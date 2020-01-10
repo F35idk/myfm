@@ -47,16 +47,16 @@ myfm_directory_menu_on_paste_activate (GtkMenu *item,
         return;
 
     if (files_copied) {
-        // myfm_copy_operation_start_async (src_files, n_files, dest_dir,
-        //                                  GTK_WINDOW (myfm_directory_menu_get_window (self)),
-        //                                  NULL, NULL);
         myfm_file_operations_copy_async (src_files, n_files, dest_dir,
                                          GTK_WINDOW (myfm_directory_menu_get_window (self)),
                                          NULL, NULL);
 
     }
     else { /* clipboard files are cut */
-
+        myfm_file_operations_move_async (src_files, n_files, dest_dir,
+                                         GTK_WINDOW (myfm_directory_menu_get_window (self)),
+                                         NULL, NULL);
+        myfm_clipboard_clear (cboard);
     }
 
     for (int i = 0; i < n_files; i ++)
@@ -155,16 +155,11 @@ myfm_directory_menu_new_submenu_for_sort (MyFMDirectoryMenu *self)
 static void
 myfm_directory_menu_fill (MyFMDirectoryMenu *self)
 {
-    GtkWindow *win;
-    MyFMApplication *app;
     GtkWidget *new_item;
     GtkWidget *new_submenu;
     GtkWidget *paste_item;
     GtkWidget *sort_item;
     GtkWidget *sort_submenu;
-
-    win = GTK_WINDOW (myfm_directory_menu_get_window (self));
-    app = MYFM_APPLICATION (gtk_window_get_application (win));
 
     new_item = myfm_utils_new_menu_item ("New...", 0, 0);
     new_submenu = new_submenu_for_new ();

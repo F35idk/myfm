@@ -34,9 +34,7 @@ void
 myfm_clipboard_add_to_copied (MyFMClipBoard *self,
                               MyFMFile **files, gint n_files)
 {
-    g_ptr_array_remove_range (self->copied_files, 0,
-                              self->copied_files->len);
-    g_hash_table_remove_all (self->cut_files);
+    myfm_clipboard_clear (self);
 
     for (int i = 0; i < n_files; i ++) {
         myfm_file_ref (files[i]);
@@ -48,9 +46,7 @@ void
 myfm_clipboard_add_to_cut (MyFMClipBoard *self,
                            MyFMFile **files, gint n_files)
 {
-    g_ptr_array_remove_range (self->copied_files, 0,
-                              self->copied_files->len);
-    g_hash_table_remove_all (self->cut_files);
+    myfm_clipboard_clear (self);
 
     for (int i = 0; i < n_files; i ++) {
         myfm_file_ref (files[i]);
@@ -66,12 +62,8 @@ myfm_clipboard_add_to_cut (MyFMClipBoard *self,
     }
 }
 
-/* gets the contents of the clipboard. if the clipboard
- * consists of cut files, these will be removed and their
- * refcount will stay the same (ownership will be transferred
- * from the clipboard to the caller). otherwise, the files
- * will have their refcount increased. so, in both cases, make
- * sure to unref the files returned from this after use */
+/* gets the contents of the clipboard.
+ * refs the files before returning them */
 MyFMFile **
 myfm_clipboard_get_contents (MyFMClipBoard *self, gint *out_n_files,
                              gboolean *out_copied)
@@ -100,8 +92,10 @@ myfm_clipboard_get_contents (MyFMClipBoard *self, gint *out_n_files,
         *out_n_files = n_cut;
         *out_copied = FALSE;
 
+        files = g_malloc (sizeof (MyFMFile *) * n_cut);
         file_list = g_hash_table_get_values (self->cut_files);
         current = file_list;
+
         for (int i = 0; i < n_cut; i ++) {
             if (!current)
                 break;
@@ -112,7 +106,6 @@ myfm_clipboard_get_contents (MyFMClipBoard *self, gint *out_n_files,
         }
 
         g_list_free (file_list);
-        g_hash_table_remove_all (self->cut_files);
     }
     else {
         *out_n_files = 0;
@@ -120,6 +113,18 @@ myfm_clipboard_get_contents (MyFMClipBoard *self, gint *out_n_files,
     }
 
     return files;
+}
+
+void
+myfm_clipboard_clear (MyFMClipBoard *self)
+{
+    gboolean copied = self->copied_files->len;
+
+    if (copied)
+        g_ptr_array_remove_range (self->copied_files, 0,
+                                  self->copied_files->len);
+    else
+        g_hash_table_remove_all (self->cut_files);
 }
 
 gboolean
