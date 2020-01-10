@@ -11,7 +11,6 @@
 
 void
 _delete_file_single (GFile *file,
-                     GtkWindow *active,
                      GCancellable *cancellable,
                      GError **error)
 {
@@ -38,7 +37,7 @@ _delete_file_single (GFile *file,
         }
 
         /* recurse */
-        _delete_file_single (child, active, cancellable, error);
+        _delete_file_single (child, cancellable, error);
         if (*error) {
             g_object_unref (direnum);
             return;
@@ -71,7 +70,7 @@ _delete_files_thread (GTask *task, gpointer src_object,
     arr = task_data;
 
     for (int i = 0; (current = arr[i]); i ++) {
-        _delete_file_single (current, win, cancellable,  &error);
+        _delete_file_single (current, cancellable,  &error);
         if (error) {
             _run_fatal_err_dialog (task, FILE_OPERATION_DELETE,
                                    "%s", error->message);
@@ -81,32 +80,4 @@ _delete_files_thread (GTask *task, gpointer src_object,
         g_object_unref (current);
     }
     g_free (arr);
-
-    g_debug ("finished");
-}
-
-void
-_delete_files_finish (GObject *src_object,
-                      GAsyncResult *res,
-                      gpointer _cb)
-{
-    MyFMFileOpCallback cb;
-    GCancellable *cancellable;
-    gpointer user_data;
-    GtkWindow *win;
-
-    cb = _cb;
-    cancellable = g_task_get_cancellable (G_TASK (res));
-    user_data = g_object_get_data (G_OBJECT (res), "user_data");
-    win = g_object_get_data (G_OBJECT (res), "win");
-
-    if (cb)
-        cb (user_data);
-
-    cancellable = g_task_get_cancellable (G_TASK (res));
-    g_object_unref (cancellable);
-    g_object_unref (res);
-
-    win = NULL;
-    user_data = NULL;
 }

@@ -54,17 +54,10 @@ MyFMDialogResponse _run_fatal_err_dialog (GTask *operation, _FileOpType type,
                                           const gchar *format_msg, ...);
 void               _copy_files_thread    (GTask *task, gpointer src_object,
                                           gpointer task_data, GCancellable *cancellable);
-void               _copy_files_finish    (GObject *src_object, GAsyncResult *res,
-                                          gpointer _cb);
 void               _move_files_thread    (GTask *task, gpointer src_object,
                                           gpointer task_data, GCancellable *cancellable);
-void               _move_files_finish    (GObject *src_object, GAsyncResult *res,
-                                          gpointer _cb);
 void               _delete_files_thread  (GTask *task, gpointer src_object,
                                           gpointer task_data, GCancellable *cancellable);
-void               _delete_files_finish  (GObject *src_object, GAsyncResult *res,
-                                          gpointer _cb);
-void               _delete_file_single   (GFile *file, GtkWindow *active,
-                                          GCancellable *cancellable, GError **error);
+void               _delete_file_single   (GFile *file, GCancellable *cancellable, GError **error);
 
 #endif /* __MYFM_FILE_OPERATIONS_PRIVATE_H */

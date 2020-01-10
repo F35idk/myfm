@@ -78,9 +78,13 @@ move_file_default (GTask *move, GFile *src,
                     if (flags->merge_all || flags->merge_once) {
                         /* remove dest and retry */
                         g_debug ("merging");
-                        _delete_file_single (dest, win, cancellable, &del_error);
+                        _delete_file_single (dest, cancellable, &del_error);
                         if (del_error) {
-                            /* FIXME: handle */
+                            g_critical ("Error in myfm_file_operations_move function "
+                                       "'move_file_default': %s", del_error->message);
+                            /* operation will be canceled */
+                            _run_fatal_err_dialog (move, FILE_OPERATION_COPY,
+                                                   "%s", del_error->message);
                             g_error_free (del_error);
                         }
 
@@ -181,14 +185,4 @@ _move_files_thread (GTask *task,
     g_free (arr);
 
     /* NOTE: this has to know whether it was cancelled or not */
-}
-
-void
-_move_files_finish (GObject *src_object,
-                    GAsyncResult *res,
-                    gpointer _cb)
-{
-    /* FIXME: stuff */
-
-    g_debug ("finished");
 }

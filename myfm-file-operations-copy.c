@@ -196,7 +196,7 @@ copy_dir_recursive (GTask *cp,
                 if (flags->merge_all || merge_once) {
                     /* delete dest and retry */
                     g_debug ("merging");
-                    _delete_file_single (dest, win,cancellable, &del_error);
+                    _delete_file_single (dest, cancellable, &del_error);
                     if (del_error) {
                         g_critical ("Error in myfm_file_operations_copy function "
                                    "'copy_dir_recursive': %s", del_error->message);
@@ -384,30 +384,5 @@ _copy_files_thread (GTask *task,
     g_free (dest_dir_path);
     g_free (arr);
 
-    g_debug ("finished");
     return; /* no need for g_task_return_x */
-}
-
-/* TODO: pass myfm_file array
- * to user callback through this */
-void
-_copy_files_finish (GObject *src_object,
-                    GAsyncResult *res,
-                    gpointer _cb)
-{
-    MyFMFileOpCallback cb;
-    GCancellable *cancellable;
-    gpointer user_data;
-    GtkWindow *win;
-
-    cb = _cb;
-    cancellable = g_task_get_cancellable (G_TASK (res));
-    user_data = g_object_get_data (G_OBJECT (res), "user_data");
-    win = g_object_get_data (G_OBJECT (res), "win");
-
-    if (cb)
-        cb (user_data);
-
-    g_object_unref (cancellable);
-    g_object_unref (res);
 }

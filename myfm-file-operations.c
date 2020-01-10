@@ -9,7 +9,9 @@
 #include "myfm-file-operations.h"
 #define G_LOG_DOMAIN "myfm-file-operations"
 
-/* dialog functions used in copy, delete and move files */
+/* dialog functions used in copy, delete and move files
+ * (declared in myfm-file-operations-private.h) */
+
 MyFMDialogResponse /* (gint) */
 _run_merge_dialog (GTask *operation,
                    const gchar *format_msg,
@@ -99,9 +101,32 @@ _run_fatal_err_dialog (GTask *operation,
                                                           format_msg, va);
 }
 
+/* TODO: pass myfm_file array
+ * to user callback through this */
+static void
+finish_operation_callback (GObject* src_object,
+                           GAsyncResult *res,
+                           gpointer _cb)
+{
+    MyFMFileOpCallback cb;
+    GCancellable *cancellable;
+    gpointer user_data;
+
+    cb = _cb;
+    cancellable = g_task_get_cancellable (G_TASK (res));
+    user_data = g_object_get_data (G_OBJECT (res), "user_data");
+
+    if (cb)
+        cb (user_data);
+
+    g_debug ("finished");
+    g_object_unref (cancellable);
+    g_object_unref (res);
+
+}
+
 static GTask *
 new_file_op_task (gpointer files,
-                  GAsyncReadyCallback cb,
                   GtkWindow *active,
                   MyFMFileOpCallback user_cb,
                   gpointer user_data)
@@ -110,7 +135,8 @@ new_file_op_task (gpointer files,
     GTask *task;
 
     task = g_task_new (NULL, g_cancellable_new (),
-                       cb, user_cb);
+                       finish_operation_callback,
+                       user_cb);
 
     g_task_set_task_data (task, files, NULL);
     g_object_set_data (G_OBJECT (task), "win", active);
@@ -151,8 +177,7 @@ myfm_file_operations_copy_async (MyFMFile **src_files, gint n_files,
 
     /* 'NULL'-terminate array */
     arr[n_files + 1] = (struct _file_w_type) {NULL, 0};
-    cp = new_file_op_task (arr, _copy_files_finish,
-                           active, cb, data);
+    cp = new_file_op_task (arr, active, cb, data);
 
     g_task_run_in_thread (cp, _copy_files_thread);
 }
@@ -168,15 +193,14 @@ myfm_file_operations_move_async (MyFMFile **src_files, gint n_files,
     g_return_if_fail (active != NULL);
 
     arr = g_malloc (sizeof (GFile *) * (n_files + 2));
-    arr[0] = myfm_file_get_g_file (dest_dir);
+    arr[0] = g_file_dup (myfm_file_get_g_file (dest_dir));
 
     for (int i = 0; i < n_files; i ++)
         arr[i + 1] = g_file_dup (myfm_file_get_g_file (src_files[i]));
 
     /* NULL-terminate */
     arr[n_files + 1] = NULL;
-    move = new_file_op_task (arr, _move_files_finish,
-                             active, cb, data);
+    move = new_file_op_task (arr, active, cb, data);
 
     g_task_run_in_thread (move, _move_files_thread);
 }
@@ -200,8 +224,7 @@ myfm_file_operations_delete_async (MyFMFile **src_files, gint n_files,
 
     /* NULL-terminate */
     arr[n_files] = NULL;
-    del = new_file_op_task (arr, _delete_files_finish,
-                            active, cb, data);
+    del = new_file_op_task (arr, active, cb, data);
 
     g_task_run_in_thread (del, _delete_files_thread);
 }
