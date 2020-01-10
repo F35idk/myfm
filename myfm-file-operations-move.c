@@ -25,10 +25,8 @@ move_file_default (GTask *move, GFile *src,
                    GFile *dest, _MoveFlags *flags)
 {
     GError *error = NULL;
-    GtkWindow *win;
     GCancellable *cancellable;
 
-    win = g_object_get_data (G_OBJECT (move), "win");
     cancellable = g_task_get_cancellable (move);
 
     g_file_move (src, dest,
@@ -174,6 +172,7 @@ _move_files_thread (GTask *task,
         dest = g_file_new_build_filename (dest_dir_path,
                                           src_basename,
                                           NULL);
+        g_free (src_basename);
 
         if (!flags.use_fallback)
             move_file_default (task, current,
@@ -182,7 +181,8 @@ _move_files_thread (GTask *task,
             move_file_fallback (task, current,
                                 dest, &flags);
     }
-    g_free (arr);
 
-    /* NOTE: this has to know whether it was cancelled or not */
+    g_object_unref (arr[0]);
+    g_free (dest_dir_path);
+    g_free (arr);
 }

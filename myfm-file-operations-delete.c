@@ -64,9 +64,7 @@ _delete_files_thread (GTask *task, gpointer src_object,
     GFile **arr;
     GFile *current;
     GError *error = NULL;
-    GtkWindow *win;
 
-    win = g_object_get_data (G_OBJECT (task), "win");
     arr = task_data;
 
     for (int i = 0; (current = arr[i]); i ++) {
