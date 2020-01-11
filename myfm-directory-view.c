@@ -23,6 +23,87 @@ struct _MyFMDirectoryView {
 G_DEFINE_TYPE (MyFMDirectoryView, myfm_directory_view, GTK_TYPE_TREE_VIEW)
 
 static void
+myfm_directory_view_on_hover (GtkWidget *widget, GdkEvent *event,
+                              gpointer user_data)
+{
+    GtkTreePath *path = NULL;
+    GtkTreeViewColumn *col = NULL;
+    GdkEventMotion *motion;
+    GtkTreeView *treeview;
+    GdkWindow *bin_window;
+    gint cell_x;
+    gint cell_y;
+    gboolean blank;
+
+    treeview = GTK_TREE_VIEW (widget);
+    bin_window = gtk_tree_view_get_bin_window (treeview);
+
+    if (event->type == GDK_BUTTON_PRESS) {
+        GtkTreeSelection *selection;
+        selection = gtk_tree_view_get_selection (treeview);
+        gtk_tree_selection_set_mode (selection, GTK_SELECTION_SINGLE);
+    }
+    if (event->type == GDK_MOTION_NOTIFY) {
+        motion = (GdkEventMotion *) event;
+        blank = gtk_tree_view_is_blank_at_pos (treeview, motion->x,
+                                               motion->y, &path,
+                                               &col, &cell_x,
+                                               &cell_y);
+        if (motion->window != bin_window)
+            return;
+
+        if (!blank) {
+            GdkDisplay *display;
+            GdkCursor *pointer;
+
+            display = gdk_window_get_display (bin_window);
+            pointer = gdk_cursor_new_from_name (display, "pointer");
+
+            gdk_window_set_cursor (bin_window, pointer);
+        }
+        else {
+            gdk_window_set_cursor (bin_window, NULL);
+        }
+    }
+}
+
+static void
+myfm_directory_view_on_rmb_release (GtkWidget *widget, GdkEvent *event,
+                                    gpointer user_data)
+{
+    GtkTreePath *path = NULL;
+    GtkTreeViewColumn *col = NULL;
+    GdkEventButton *button;
+    GtkTreeView *treeview;
+    GdkWindow *bin_window;
+    gint cell_x;
+    gint cell_y;
+    gboolean blank;
+
+    button = (GdkEventButton *) event;
+    treeview = GTK_TREE_VIEW (widget);
+    bin_window = gtk_tree_view_get_bin_window (treeview);
+    blank = gtk_tree_view_is_blank_at_pos (treeview, button->x,
+                                           button->y, &path,
+                                           &col, &cell_x,
+                                           &cell_y);
+    if (button->window != bin_window)
+        return;
+
+    if (!blank) {
+        return;
+    }
+    else {
+        // GtkTreeSelection *selection;
+        // selection = gtk_tree_view_get_selection (treeview);
+
+        // gtk_tree_selection_set_mode (selection, GTK_SELECTION_SINGLE);
+        // if (gtk_tree_selection_path_is_selected (selection, path))
+        // gtk_tree_selection_unselect_all (selection);
+    }
+}
+
+static void
 myfm_directory_view_on_right_click (GtkWidget *widget, GdkEvent *event,
                                     gpointer user_data)
 {
@@ -39,13 +120,13 @@ myfm_directory_view_on_right_click (GtkWidget *widget, GdkEvent *event,
         GtkTreeViewColumn *col = NULL;
         gint cell_x;
         gint cell_y;
-        gboolean result;
+        gboolean blank;
 
         g_debug ("rmb");
-        result = gtk_tree_view_get_path_at_pos (treeview, event_button->x,
-                                                event_button->y, &path,
-                                                &col, &cell_x, &cell_y);
-        if (result) {
+        blank = gtk_tree_view_is_blank_at_pos (treeview, event_button->x,
+                                               event_button->y, &path,
+                                               &col, &cell_x, &cell_y);
+        if (!blank) {
             if (path) { /* a file was right clicked */
                 GtkWidget *menu;
                 MyFMFile *selected;
@@ -59,8 +140,11 @@ myfm_directory_view_on_right_click (GtkWidget *widget, GdkEvent *event,
         }
         else { /* the directory view was right clicked (no specific file) */
             GtkWidget *menu;
+            GtkTreeSelection *selection;
 
-            g_debug ("dir-menu");
+            selection = gtk_tree_view_get_selection (treeview);
+            gtk_tree_selection_set_mode (selection, GTK_SELECTION_NONE);
+
             menu = myfm_directory_menu_new (MYFM_DIRECTORY_VIEW (treeview));
             gtk_menu_popup_at_pointer (GTK_MENU (menu), event);
             /* popup some different context menu */
@@ -810,12 +894,21 @@ myfm_directory_view_constructed (GObject *object)
     gtk_tree_view_set_rubber_banding (GTK_TREE_VIEW (self), TRUE);
     /* TODO: allow configurable */
     gtk_tree_view_set_activate_on_single_click (GTK_TREE_VIEW (self), TRUE);
+    /* enable receiving mouse events */
+    gtk_widget_add_events (GTK_WIDGET (self), GDK_POINTER_MOTION_MASK |
+                           GDK_BUTTON_RELEASE_MASK);
 
+    g_signal_connect (GTK_WIDGET (self), "event",
+                      G_CALLBACK (myfm_directory_view_on_hover),
+                      NULL);
     g_signal_connect (self, "row-activated",
                       G_CALLBACK (myfm_directory_view_on_file_select),
                       NULL);
     g_signal_connect (GTK_WIDGET (self), "button-press-event",
                       G_CALLBACK (myfm_directory_view_on_right_click),
+                      NULL);
+    g_signal_connect (GTK_WIDGET (self), "button-release-event",
+                      G_CALLBACK (myfm_directory_view_on_rmb_release),
                       NULL);
 }
 
