@@ -8,8 +8,15 @@
 #include "myfm-file.h"
 #include "myfm-window.h"
 #include "myfm-clipboard.h"
+#define G_LOG_DOMAIN "myfm-clipboard"
 
-G_DEFINE_BOXED_TYPE (MyFMClipBoard, myfm_clipboard, myfm_clipboard_copy, myfm_clipboard_free)
+struct _MyFMClipBoard {
+    GObject parent_instance;
+    GPtrArray *copied_files;
+    GHashTable *cut_files;
+};
+
+G_DEFINE_TYPE (MyFMClipBoard, myfm_clipboard, G_TYPE_OBJECT)
 
 static void
 myfm_clipboard_on_cut_file_updated (MyFMFile *myfm_file,
@@ -20,12 +27,13 @@ myfm_clipboard_on_cut_file_updated (MyFMFile *myfm_file,
     MyFMClipBoard *self;
 
     self = (MyFMClipBoard *) myfm_clipboard;
-    /* if updated file is cut, replace its old g_file key */
+    /* if updated file is cut, update the hash table */
     if (g_hash_table_contains (self->cut_files, old_g_file)) {
         g_debug ("file in clipboard updated");
-        g_hash_table_replace (self->cut_files,
-                              myfm_file_get_g_file (myfm_file),
-                              myfm_file);
+        g_hash_table_remove (self->cut_files, old_g_file);
+        g_hash_table_insert (self->cut_files,
+                             myfm_file_get_g_file (myfm_file),
+                             myfm_file);
         return;
     }
 }
@@ -60,6 +68,9 @@ myfm_clipboard_add_to_cut (MyFMClipBoard *self,
                                            myfm_clipboard_on_cut_file_updated,
                                            self);
     }
+
+    g_signal_emit_by_name (self, "cut-uncut",
+                           files, n_files, TRUE);
 }
 
 /* gets the contents of the clipboard.
@@ -120,11 +131,25 @@ myfm_clipboard_clear (MyFMClipBoard *self)
 {
     gboolean copied = self->copied_files->len;
 
-    if (copied)
+    if (copied) {
         g_ptr_array_remove_range (self->copied_files, 0,
                                   self->copied_files->len);
-    else
-        g_hash_table_remove_all (self->cut_files);
+    }
+    else {
+        MyFMFile **files;
+        gint n_files;
+
+        files = myfm_clipboard_get_contents (self, &n_files, &copied);
+
+        if (n_files) {
+            g_hash_table_remove_all (self->cut_files);
+            g_signal_emit_by_name (self, "cut-uncut",
+                                   files, n_files, FALSE);
+
+            for (int i = 0; i < n_files; i++)
+                myfm_file_unref (files[i]);
+        }
+    }
 }
 
 gboolean
@@ -152,33 +177,32 @@ myfm_clipboard_free (MyFMClipBoard *self)
 {
 }
 
-/* dummy func (needed to define boxed type) */
-MyFMClipBoard *
-myfm_clipboard_copy (MyFMClipBoard *self)
+static void
+myfm_clipboard_init (MyFMClipBoard *self)
 {
-    return self;
+    self->copied_files = g_ptr_array_new_with_free_func ((GDestroyNotify) myfm_file_unref);
+    /* we keep a hash table of cut myfm_files, with their g_files as keys */
+    self->cut_files = g_hash_table_new_full ((GHashFunc) g_file_hash,
+                                             (GEqualFunc) g_file_equal,
+                                             (GDestroyNotify) g_object_unref,
+                                             (GDestroyNotify) myfm_file_unref);
 }
 
-/* wrapper around myfm_file_unref so we
- * can set it as a valid destroy func */
 static void
-myfm_file_destroy_func (gpointer myfm_file)
+myfm_clipboard_class_init (MyFMClipBoardClass *cls)
 {
-    myfm_file_unref (myfm_file);
+    /* signal emitted when files are added and removed
+     * from the cut hash table in clipboard */
+    g_signal_new ("cut-uncut", MYFM_TYPE_CLIPBOARD,
+                  G_SIGNAL_RUN_FIRST, 0, NULL,
+                  NULL, NULL, G_TYPE_NONE, 3,
+                  G_TYPE_POINTER, /* array of myfm_files */
+                  G_TYPE_INT, /* num of myfm_files */
+                  G_TYPE_BOOLEAN /* TRUE if cut, FALSE if uncut */ );
 }
 
 MyFMClipBoard *
 myfm_clipboard_new (void)
 {
-    MyFMClipBoard *clipboard;
-
-    clipboard = g_malloc (sizeof (MyFMClipBoard));
-    clipboard->copied_files = g_ptr_array_new_with_free_func (myfm_file_destroy_func);
-    /* we keep a hash table of cut myfm_files, with their g_files as keys */
-    clipboard->cut_files = g_hash_table_new_full ((GHashFunc) g_file_hash,
-                                                  (GEqualFunc) g_file_equal,
-                                                  g_object_unref,
-                                                  myfm_file_destroy_func);
-
-    return clipboard;
+    return g_object_new (MYFM_TYPE_CLIPBOARD, NULL);
 }
