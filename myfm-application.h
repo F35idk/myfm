@@ -15,6 +15,6 @@ G_DECLARE_FINAL_TYPE          (MyFMApplication, myfm_application, MYFM, APPLICAT
 
 MyFMApplication *myfm_application_new                   (void);
 GtkIconSize     myfm_application_get_icon_size          (MyFMApplication *self);
-MyFMClipBoard  *myfm_application_get_file_clipboard     (MyFMApplication *self);
+MyFMClipBoard   *myfm_application_get_file_clipboard    (MyFMApplication *self);
 
 #endif /* __MYFM_APPLICATION_H */

@@ -80,7 +80,7 @@ myfm_application_finalize (GObject *object)
 
     self = MYFM_APPLICATION (object);
 
-    myfm_clipboard_free (self->file_clipboard);
+    g_object_unref (self->file_clipboard);
 
     G_OBJECT_CLASS (myfm_application_parent_class)->finalize (object);
 }
