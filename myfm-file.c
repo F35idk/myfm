@@ -121,23 +121,11 @@ myfm_file_IO_fields_callback (GObject *g_file, GAsyncResult *res,
                            error, cb_data->user_data);
         cb_data->callback = NULL;
         cb_data->user_data = NULL;
+
+        if (cb_data->old_g_file)
+            g_object_unref (cb_data->old_g_file);
     }
 
-    /* execute any connected signal handlers
-     * (only if the old_g_file which the
-     * handlers were connected to was passed) */
-    if (cb_data->old_g_file) {
-        /* when we emit the 'updated' signal,
-         * g_object_unref will always be called
-         * on old_g_file after all user-provided
-         * callbacks have executed. thus, we don't
-         * need to unref old_g_file here */
-        g_signal_emit_by_name (cb_data->old_g_file,
-                               "updated", self);
-    }
-    else
-        g_critical ("failed to emit signal in myfm_file, "
-                    "'old_g_file' was NULL");
 
     /* decrement refcount of file when we're done */
     myfm_file_unref (self);
@@ -171,108 +159,6 @@ myfm_file_init_io_fields_async (MyFMFile *self, MyFMFileUpdateCallback callback,
     myfm_file_ref (self);
 }
 
-/* yet another convenience struct. this time for passing
- * user callback and data to our "update" signal wrapper */
-struct cb_data2 {
-    MyFMFileUpdateCallback cb;
-    gpointer user_data;
-};
-
-/* GClosureNotify to free the above struct. is invoked
- * when signal handlers are disconnected/reconnected */
-static void
-free_cb_data2 (gpointer cb_data, GClosure *closure)
-{
-    g_debug ("freeing connected signal data");
-    g_free (cb_data);
-}
-
-static void
-myfm_file_update_callback_wrapper (GFile *old_g_file, gpointer myfm_file,
-                                   gpointer callback_data)
-{
-    struct cb_data2 *cb_data;
-
-    cb_data = (struct cb_data2 *) callback_data;
-
-    cb_data->cb (myfm_file, old_g_file,
-                 NULL, cb_data->user_data);
-
-    /* reconnect the handler and its data to
-     * the new g_file in the updated myfm_file */
-    myfm_file_connect_update_callback (myfm_file, cb_data->cb,
-                                       cb_data->user_data);
-
-    /* NOTE: freeing cb_data is taken care of by
-     * free_cb_data2 (), which is invoked when
-     * old_g_file is killed (default callback does this).
-     * so we don't free here */
-}
-
-/* convenience wrapper function that allows connecting
- * callbacks to be executed when a myfm_file has been
- * updated. internally, this is done by connecting to
- * and emitting signals on the myfm_file's g_file */
-/* TODO: when more signals are added, consider making this
- * function a more general replacement for g_signal_connect */
-void
-myfm_file_connect_update_callback (MyFMFile *self, MyFMFileUpdateCallback cb,
-                                   gpointer data)
-{
-    struct cb_data2 *cb_data;
-
-    cb_data = g_malloc (sizeof (struct cb_data2));
-    cb_data->cb = cb;
-    cb_data->user_data = data;
-
-    g_signal_connect_data (myfm_file_get_g_file (self), "updated",
-                           G_CALLBACK (myfm_file_update_callback_wrapper),
-                           cb_data, (GClosureNotify) free_cb_data2, 0); /* FIXME: ZERO???? */
-}
-
-/* default 'updated' callback, connected to run after
- * all user-provided callbacks. unrefs 'old_g_file' */
-static void
-default_update_callback (GFile *old_g_file, gpointer myfm_file,
-                         gpointer data)
-{
-    g_debug ("running default update callback");
-    g_object_unref (old_g_file);
-
-    /* reconnect default callback to
-     * new g_file in updated myfm_file */
-    g_signal_connect_after (myfm_file_get_g_file (myfm_file),
-                            "updated",
-                            G_CALLBACK (default_update_callback),
-                            NULL);
-}
-
-static void
-setup_signals (GFile *g_file)
-{
-
-  /* tells us whether to install
-   * signals on the myfm_file's
-   * g_file (only needs to happen
-   * once, during the first construct) */
-    static gboolean first_init = TRUE;
-
-    if (first_init) {
-        g_signal_new ("updated", G_TYPE_FILE,
-                      G_SIGNAL_RUN_FIRST, 0,
-                      NULL, NULL, NULL,
-                      G_TYPE_NONE, 1,
-                      G_TYPE_POINTER);
-
-        first_init = FALSE;
-    }
-
-    /* connect default 'update' callback to be invoked last */
-    g_signal_connect_after (g_file, "updated",
-                            G_CALLBACK (default_update_callback),
-                            NULL);
-}
-
 /* most other constructors call this function to start.
  * creates a new myfm_file without initializing the fields
  * that require async IO. refs the g_file passed into it */
@@ -285,8 +171,6 @@ myfm_file_new_without_io_fields (GFile *g_file)
 
     myfm_file = g_malloc (sizeof (MyFMFile));
     myfm_file->priv = g_malloc (sizeof (struct MyFMFilePrivate));
-
-    setup_signals (g_file);
 
     myfm_file->priv->g_file = g_file;
     myfm_file->priv->is_open_dir = FALSE;
@@ -417,6 +301,7 @@ myfm_file_set_display_name_callback (GObject *g_file, GAsyncResult *res,
                                error, cb_data->user_data);
             cb_data->callback = NULL; /* NOTE: ? */
             cb_data->user_data = NULL;
+            g_object_unref (cb_data->old_g_file);
         }
 
         /* NOTE: file will be NULL here, so no unref needed */
