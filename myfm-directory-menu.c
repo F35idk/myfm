@@ -160,7 +160,10 @@ myfm_directory_menu_fill (MyFMDirectoryMenu *self)
     GtkWidget *paste_item;
     GtkWidget *sort_item;
     GtkWidget *sort_submenu;
+    GtkApplication *app;
+    MyFMClipBoard *cboard;
 
+    app = gtk_window_get_application (GTK_WINDOW (gtk_widget_get_toplevel (GTK_WIDGET (self))));
     new_item = myfm_utils_new_menu_item ("New...", 0, 0);
     new_submenu = new_submenu_for_new ();
     gtk_menu_item_set_submenu (GTK_MENU_ITEM (new_item), new_submenu);
@@ -168,7 +171,14 @@ myfm_directory_menu_fill (MyFMDirectoryMenu *self)
     gtk_widget_show (new_item);
 
     paste_item = myfm_utils_new_menu_item ("Paste", 0, 0);
+    cboard = myfm_application_get_file_clipboard (MYFM_APPLICATION (app));
     gtk_menu_shell_append (GTK_MENU_SHELL (self), paste_item);
+
+    if (myfm_clipboard_is_empty (cboard))
+        gtk_widget_set_sensitive (paste_item, FALSE);
+    else
+        gtk_widget_set_sensitive (paste_item, TRUE);
+
     gtk_widget_show (paste_item);
     g_signal_connect (GTK_MENU_ITEM (paste_item), "activate",
                       myfm_directory_menu_on_paste_activate, self);
