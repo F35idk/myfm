@@ -59,7 +59,7 @@ myfm_file_menu_on_item_activate (GtkMenuItem *item,
         app = gtk_window_get_application (GTK_WINDOW (myfm_file_menu_get_window (self)));
         cboard = myfm_application_get_file_clipboard (MYFM_APPLICATION (app));
 
-        myfm_clipboard_add_to_cut (cboard, &self->file, 1);
+        myfm_clipboard_add_to_cut (cboard, &self->file, 1, TRUE);
     }
     else if (!strcmp (label, "Copy")) {
         GtkApplication *app;
@@ -68,7 +68,7 @@ myfm_file_menu_on_item_activate (GtkMenuItem *item,
         app = gtk_window_get_application (GTK_WINDOW (myfm_file_menu_get_window (self)));
         cboard = myfm_application_get_file_clipboard (MYFM_APPLICATION (app));
 
-        myfm_clipboard_add_to_copied (cboard, &self->file, 1);
+        myfm_clipboard_add_to_copied (cboard, &self->file, 1, TRUE);
     }
     else if (!strcmp (label, "Delete")) {
         myfm_file_operations_delete_async (&self->file, 1,
@@ -245,9 +245,7 @@ myfm_file_menu_fill (MyFMFileMenu *self)
     GtkWidget *open_with_submenu;
     GtkWidget *copy;
     GtkWidget *cut;
-    MyFMApplication *app;
 
-    app = MYFM_APPLICATION (gtk_window_get_application (GTK_WINDOW (myfm_file_menu_get_window (self))));
     open_with = myfm_utils_new_menu_item ("Open With", 0, 0);
     open_with_submenu = myfm_file_menu_new_submenu_for_open_with (self);
     gtk_menu_item_set_submenu (GTK_MENU_ITEM (open_with),

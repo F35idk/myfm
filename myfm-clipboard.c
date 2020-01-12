@@ -24,8 +24,6 @@ myfm_clipboard_add (MyFMClipBoard *self,
                     gint n_files,
                     GPtrArray *arr)
 {
-    myfm_clipboard_clear (self);
-
     for (int i = 0; i < n_files; i ++) {
         myfm_file_ref (files[i]);
         g_ptr_array_add  (arr, files[i]);
@@ -33,16 +31,22 @@ myfm_clipboard_add (MyFMClipBoard *self,
 }
 
 void
-myfm_clipboard_add_to_copied (MyFMClipBoard *self,
-                              MyFMFile **files, gint n_files)
+myfm_clipboard_add_to_copied (MyFMClipBoard *self, MyFMFile **files,
+                              gint n_files, gboolean clear)
 {
+    if (clear)
+        myfm_clipboard_clear (self);
+
     myfm_clipboard_add (self, files, n_files, self->copied_files);
 }
 
 void
-myfm_clipboard_add_to_cut (MyFMClipBoard *self,
-                           MyFMFile **files, gint n_files)
+myfm_clipboard_add_to_cut (MyFMClipBoard *self, MyFMFile **files,
+                           gint n_files, gboolean clear)
 {
+    if (clear)
+        myfm_clipboard_clear (self);
+
     myfm_clipboard_add (self, files, n_files, self->cut_files);
     g_signal_emit_by_name (self, "cut-uncut",
                            files, n_files, TRUE);
@@ -113,19 +117,36 @@ myfm_clipboard_clear (MyFMClipBoard *self)
     }
 }
 
-gboolean
-myfm_clipboard_file_is_cut (MyFMClipBoard *self,
-                            MyFMFile *file)
+static gboolean
+myfm_clipboard_find (MyFMClipBoard *self,
+                     MyFMFile *file,
+                     GPtrArray *arr)
 {
-    gpointer *files = self->cut_files->pdata;
+    gpointer *files = arr->pdata;
 
-    for (int i = 0; i < self->cut_files->len; i++) {
+    for (int i = 0; i < arr->len; i++) {
         if (g_file_equal (myfm_file_get_g_file (file),
                           myfm_file_get_g_file (files[i])))
             return TRUE;
     }
 
     return FALSE;
+}
+
+gboolean
+myfm_clipboard_file_is_cut (MyFMClipBoard *self,
+                            MyFMFile *file)
+{
+    return myfm_clipboard_find (self, file,
+                                self->cut_files);
+}
+
+gboolean
+myfm_clipboard_file_is_copied (MyFMClipBoard *self,
+                               MyFMFile *file)
+{
+    return myfm_clipboard_find (self, file,
+                                self->copied_files);
 }
 
 gboolean

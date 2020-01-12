@@ -104,7 +104,7 @@ _run_fatal_err_dialog (GTask *operation,
 /* TODO: pass myfm_file array
  * to user callback through this */
 static void
-finish_operation_callback (GObject* src_object,
+operation_finished_callback (GObject* src_object,
                            GAsyncResult *res,
                            gpointer _cb)
 {
@@ -126,7 +126,7 @@ finish_operation_callback (GObject* src_object,
 }
 
 static GTask *
-new_file_op_task (gpointer files,
+new_file_op_task (gpointer data,
                   GtkWindow *active,
                   MyFMFileOpCallback user_cb,
                   gpointer user_data)
@@ -135,10 +135,10 @@ new_file_op_task (gpointer files,
     GTask *task;
 
     task = g_task_new (NULL, g_cancellable_new (),
-                       finish_operation_callback,
+                       operation_finished_callback,
                        user_cb);
 
-    g_task_set_task_data (task, files, NULL);
+    g_task_set_task_data (task, data, NULL);
     g_object_set_data (G_OBJECT (task), "win", active);
     g_object_set_data (G_OBJECT (task), "user_data", user_data);
     g_task_set_priority (task, G_PRIORITY_DEFAULT); /* NOTE: redundant */
@@ -205,25 +205,44 @@ myfm_file_operations_move_async (MyFMFile **src_files, gint n_files,
     g_task_run_in_thread (move, _move_files_thread);
 }
 
-/* TODO: if file is in clipboard, simply mark the
- * file as cut instead of starting delete operation? */
 void
 myfm_file_operations_delete_async (MyFMFile **src_files, gint n_files,
                                    GtkWindow *active, MyFMFileOpCallback cb,
                                    gpointer data)
 {
     GTask *del;
-    GFile **arr;
+    GPtrArray *g_arr;
+    gpointer *arr;
+    MyFMApplication *app;
+    MyFMClipBoard *cboard;
+    gboolean clear;
 
     g_return_if_fail (active != NULL);
 
-    arr = g_malloc (sizeof (GFile *) * (n_files + 1));
+    app = MYFM_APPLICATION (gtk_window_get_application (active));
+    cboard = myfm_application_get_file_clipboard (app);
+    g_arr = g_ptr_array_new ();
+    clear = TRUE;
 
-    for (int i = 0; i < n_files; i ++)
-        arr[i] = g_file_dup (myfm_file_get_g_file (src_files[i]));
+    for (int i = 0; i < n_files; i ++) {
+        /* if file is copied, simply cut it instead
+         * of starting delete operation on it */
+        if (myfm_clipboard_file_is_copied (cboard, src_files[i])) {
+            myfm_clipboard_add_to_cut (cboard, &src_files[i], 1, clear);
+            /* only clear clipboard on first iteration */
+            clear = FALSE;
+        }
+        else {
+            g_ptr_array_add (g_arr, g_file_dup (myfm_file_get_g_file (src_files[i])));
+        }
+    }
 
     /* NULL-terminate */
-    arr[n_files] = NULL;
+    g_ptr_array_add (g_arr, NULL);
+
+    arr = g_arr->pdata;
+    g_ptr_array_free (g_arr, FALSE);
+
     del = new_file_op_task (arr, active, cb, data);
 
     g_task_run_in_thread (del, _delete_files_thread);
