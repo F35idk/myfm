@@ -46,7 +46,7 @@ mpaned_scroll_left_callback (MyFMMultiPaned *mpaned, gdouble scroll_dest,
     current_val = gtk_adjustment_get_value (adj);
 
     if (scroll_dest - page_size < 0)
-        step_incr = current_val;
+        step_incr = current_val; /* scroll to start */
     else
         step_incr = current_val - scroll_dest + page_size;
 
@@ -119,18 +119,26 @@ myfm_window_open_other (MyFMWindow *self, MyFMFile *file)
     g_files = g_list_append (NULL, myfm_file_get_g_file (file));
 
     /* NOTE: difference between this returning false and error being set? handle both? */
-    g_app_info_launch (g_list_first (app_infos)->data,
-                       g_files, NULL, &error);
 
-    if (error) {
-        myfm_utils_run_error_dialog (GTK_WINDOW (self), "error in myfm_window \
-                                     when opening file(s) with '%s': %s",
+    if (g_list_length (app_infos) == 0) {
+        myfm_utils_run_error_dialog (GTK_WINDOW (self), "error when attempting to"
+                                     "open file: no default applications found",
                                      g_app_info_get_display_name (g_list_first (app_infos)->data),
                                      error->message);
-        g_critical ("error in myfm_window when opening file(s) with '%s': %s",
-                    g_app_info_get_display_name (g_list_first (app_infos)->data),
-                    error->message);
-        g_error_free (error);
+    }
+    else {
+        g_app_info_launch (g_list_first (app_infos)->data,
+                           g_files, NULL, &error);
+         if (error) {
+             g_critical ("error in myfm_window when opening file(s) with '%s': %s",
+                         g_app_info_get_display_name (g_list_first (app_infos)->data),
+                         error->message);
+             myfm_utils_run_error_dialog (GTK_WINDOW (self), "error in myfm_window \
+                                          when opening file(s) with '%s': %s",
+                                          g_app_info_get_display_name (g_list_first (app_infos)->data),
+                                          error->message);
+             g_error_free (error);
+         }
     }
 
     g_list_free (g_files);
