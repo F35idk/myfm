@@ -4,11 +4,13 @@
 
 #include <gtk/gtk.h>
 
-#include "myfm-directory-view.h"
+#include "myfm-icon-renderer.h"
+#include "myfm-application.h"
 #include "myfm-file-menu.h"
 #include "myfm-directory-menu.h"
 #include "myfm-file.h"
 #include "myfm-window.h"
+#include "myfm-directory-view.h"
 #define G_LOG_DOMAIN "myfm-directory-view"
 
 struct _MyFMDirectoryView {
@@ -41,6 +43,8 @@ myfm_directory_view_on_hover (GtkWidget *widget, GdkEvent *event,
     if (event->type == GDK_BUTTON_PRESS) {
         GtkTreeSelection *selection;
         selection = gtk_tree_view_get_selection (treeview);
+        /* re-enable normal selection (this is disabled whenever
+         * blank space is right-clicked, see on_rmb function) */
         gtk_tree_selection_set_mode (selection, GTK_SELECTION_SINGLE);
     }
     if (event->type == GDK_MOTION_NOTIFY) {
@@ -52,6 +56,9 @@ myfm_directory_view_on_hover (GtkWidget *widget, GdkEvent *event,
         if (motion->window != bin_window)
             return;
 
+        if (path)
+            gtk_tree_path_free (path);
+
         if (!blank) {
             GdkDisplay *display;
             GdkCursor *pointer;
@@ -60,6 +67,7 @@ myfm_directory_view_on_hover (GtkWidget *widget, GdkEvent *event,
             pointer = gdk_cursor_new_from_name (display, "pointer");
 
             gdk_window_set_cursor (bin_window, pointer);
+            g_object_unref (pointer);
         }
         else {
             gdk_window_set_cursor (bin_window, NULL);
@@ -68,44 +76,8 @@ myfm_directory_view_on_hover (GtkWidget *widget, GdkEvent *event,
 }
 
 static void
-myfm_directory_view_on_rmb_release (GtkWidget *widget, GdkEvent *event,
-                                    gpointer user_data)
-{
-    GtkTreePath *path = NULL;
-    GtkTreeViewColumn *col = NULL;
-    GdkEventButton *button;
-    GtkTreeView *treeview;
-    GdkWindow *bin_window;
-    gint cell_x;
-    gint cell_y;
-    gboolean blank;
-
-    button = (GdkEventButton *) event;
-    treeview = GTK_TREE_VIEW (widget);
-    bin_window = gtk_tree_view_get_bin_window (treeview);
-    blank = gtk_tree_view_is_blank_at_pos (treeview, button->x,
-                                           button->y, &path,
-                                           &col, &cell_x,
-                                           &cell_y);
-    if (button->window != bin_window)
-        return;
-
-    if (!blank) {
-        return;
-    }
-    else {
-        // GtkTreeSelection *selection;
-        // selection = gtk_tree_view_get_selection (treeview);
-
-        // gtk_tree_selection_set_mode (selection, GTK_SELECTION_SINGLE);
-        // if (gtk_tree_selection_path_is_selected (selection, path))
-        // gtk_tree_selection_unselect_all (selection);
-    }
-}
-
-static void
-myfm_directory_view_on_right_click (GtkWidget *widget, GdkEvent *event,
-                                    gpointer user_data)
+myfm_directory_view_on_rmb (GtkWidget *widget, GdkEvent *event,
+                            gpointer user_data)
 {
     GdkWindow *bin_window;
     GdkEventButton *event_button;
@@ -142,14 +114,25 @@ myfm_directory_view_on_right_click (GtkWidget *widget, GdkEvent *event,
             GtkWidget *menu;
             GtkTreeSelection *selection;
 
-            selection = gtk_tree_view_get_selection (treeview);
-            gtk_tree_selection_set_mode (selection, GTK_SELECTION_NONE);
+            if (path)
+                gtk_tree_path_free (path);
 
+            selection = gtk_tree_view_get_selection (treeview);
             menu = myfm_directory_menu_new (MYFM_DIRECTORY_VIEW (treeview));
+
+            /* prevent selecting rows */
+            gtk_tree_selection_set_mode (selection, GTK_SELECTION_NONE);
             gtk_menu_popup_at_pointer (GTK_MENU (menu), event);
-            /* popup some different context menu */
         }
     }
+}
+
+static void
+myfm_directory_view_on_files_cut_uncut (MyFMClipBoard *cboard, gpointer files,
+                                        gint n_files, gboolean cut, gpointer self)
+{
+    /* NOTE: anything else to do here? */
+    gtk_widget_queue_draw (GTK_WIDGET (self));
 }
 
 static void
@@ -412,11 +395,17 @@ myfm_file_icon_data_func (GtkTreeViewColumn *tree_column,
         app = MYFM_APPLICATION (gtk_window_get_application (win));
         icon_size = myfm_application_get_icon_size (app);
         icon = myfm_file_get_icon (myfm_file);
+        MyFMClipBoard *cboard = myfm_application_get_file_clipboard (app);
 
-        if (icon) { /* icon shouldn't ever be null, but we check anyway */
-            g_object_set (cell, "gicon", icon, NULL);
-            g_object_set (cell, "stock-size", icon_size, NULL);
-        }
+        if (myfm_clipboard_file_is_cut (cboard, myfm_file))
+            myfm_icon_renderer_set_icon_faded (MYFM_ICON_RENDERER (cell), TRUE);
+        else
+            myfm_icon_renderer_set_icon_faded (MYFM_ICON_RENDERER (cell), FALSE);
+
+        g_return_if_fail (icon != NULL);
+
+        g_object_set (cell, "gicon", icon, NULL);
+        g_object_set (cell, "stock-size", icon_size, NULL);
     }
 }
 
@@ -647,7 +636,8 @@ myfm_directory_view_setup_files_column (MyFMDirectoryView *self)
 
     col = gtk_tree_view_column_new ();
 
-    renderer = gtk_cell_renderer_pixbuf_new ();
+    // renderer = gtk_cell_renderer_pixbuf_new ();
+    renderer = myfm_icon_renderer_new ();
     gtk_tree_view_column_pack_start (col, renderer, FALSE);
     gtk_tree_view_column_set_attributes (col, renderer, NULL);
     gtk_tree_view_column_set_cell_data_func (col, renderer,
@@ -747,6 +737,7 @@ myfm_directory_view_next_files_callback (GObject *file_enumerator, GAsyncResult 
             /* iterate over directory_list and add files to store */
             child_info = current_node->data;
 
+            /* ignore hidden files */
             if (!MYFM_DIRECTORY_VIEW (self)->show_hidden) {
                 if (child_info && g_file_info_get_is_hidden (child_info)) {
                     g_object_unref (child_info);
@@ -769,7 +760,8 @@ myfm_directory_view_next_files_callback (GObject *file_enumerator, GAsyncResult 
             }
             else {
                 MyFMFile *child_myfm_file = myfm_file_new_with_info (child_g_file, child_info);
-                g_object_unref (child_g_file); /* myfm_file refs the g_file, so we make sure to unref it here */
+                /* myfm_file refs the g_file, so we make sure to unref it here */
+                g_object_unref (child_g_file);
                 gtk_list_store_append (store, &iter); /* out iter */
                 gtk_list_store_set (store, &iter, 0, (gpointer) child_myfm_file, -1);
                 g_object_unref (child_info);
@@ -867,14 +859,12 @@ myfm_directory_view_destroy (GtkWidget *widget)
 static void
 myfm_directory_view_dispose (GObject *object)
 {
-    /* TODO: Impl */
     G_OBJECT_CLASS (myfm_directory_view_parent_class)->dispose (object);
 }
 
 static void
 myfm_directory_view_finalize (GObject *object)
 {
-    /* TODO: Impl */
     G_OBJECT_CLASS (myfm_directory_view_parent_class)->finalize (object);
 }
 
@@ -905,10 +895,7 @@ myfm_directory_view_constructed (GObject *object)
                       G_CALLBACK (myfm_directory_view_on_file_select),
                       NULL);
     g_signal_connect (GTK_WIDGET (self), "button-press-event",
-                      G_CALLBACK (myfm_directory_view_on_right_click),
-                      NULL);
-    g_signal_connect (GTK_WIDGET (self), "button-release-event",
-                      G_CALLBACK (myfm_directory_view_on_rmb_release),
+                      G_CALLBACK (myfm_directory_view_on_rmb),
                       NULL);
 }
 
@@ -944,14 +931,22 @@ myfm_directory_view_class_init (MyFMDirectoryViewClass *cls)
  * should only contain g_obj_new and nothing else, as this helps
  * with potential language bindings (extending with vala??) */
 MyFMDirectoryView *
-myfm_directory_view_new (MyFMFile *directory)
+myfm_directory_view_new (MyFMFile *directory, MyFMApplication *app)
 {
     MyFMDirectoryView *dirview;
+    MyFMClipBoard *cboard;
 
+    cboard = myfm_application_get_file_clipboard (app);
     dirview = g_object_new (MYFM_TYPE_DIRECTORY_VIEW, NULL);
     dirview->directory = directory;
+
     myfm_file_ref (directory);
     myfm_directory_view_setup_monitor (dirview);
+
+    /* use connect_object to prevent use-after-free */
+    g_signal_connect_object (cboard, "cut-uncut",
+                             G_CALLBACK (myfm_directory_view_on_files_cut_uncut),
+                             dirview, 0);
 
     return dirview;
 }

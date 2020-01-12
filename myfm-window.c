@@ -68,15 +68,17 @@ mpaned_scroll_to_end_callback (MyFMMultiPaned *mpaned, gpointer pane_scroll)
 
 static void
 myfm_window_open_dir_async (MyFMWindow *self, MyFMFile *dir,
-                                        gint dirview_index)
+                            gint dirview_index)
 {
     MyFMDirectoryView *dirview;
     GtkScrolledWindow *dirview_scroll;
+    MyFMApplication *app;
 
     myfm_file_set_is_open (dir, TRUE);
 
+    app = MYFM_APPLICATION (gtk_window_get_application (GTK_WINDOW (self)));
     /* create new directory view and fill it with files */
-    dirview = myfm_directory_view_new (dir);
+    dirview = myfm_directory_view_new (dir, app);
     /* TODO: make default sort criteria settable */
     myfm_directory_view_set_file_sort_criteria (dirview, MYFM_SORT_NAME_A_TO_Z);
     myfm_directory_view_fill_store_async (dirview);

@@ -8,6 +8,7 @@
 #include <gtk/gtk.h>
 
 #include "myfm-file.h"
+#include "myfm-application.h"
 
 /* gtk_tree_view subclass for displaying file directories. each column of the file manager
  * is its own myfm_directory_view. to create a new directory view and fill it with files simply
@@ -26,7 +27,7 @@ typedef enum {
     MYFM_SORT_NONE,
 } MyFMSortCriteria;
 
-MyFMDirectoryView *myfm_directory_view_new                   (MyFMFile *directory);
+MyFMDirectoryView *myfm_directory_view_new                   (MyFMFile *directory, MyFMApplication *app);
 MyFMFile          *myfm_directory_view_get_directory         (MyFMDirectoryView *self);
 MyFMFile          *myfm_directory_view_get_file_from_path    (MyFMDirectoryView *self, GtkTreePath *path);
 void              myfm_directory_view_set_show_hidden        (MyFMDirectoryView *self, gboolean show_hidden);
