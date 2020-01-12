@@ -13,8 +13,6 @@
 #define MYFM_TYPE_CLIPBOARD (myfm_clipboard_get_type ())
 G_DECLARE_FINAL_TYPE        (MyFMClipBoard, myfm_clipboard, MYFM, CLIPBOARD, GObject)
 
-void          myfm_clipboard_free           (MyFMClipBoard *self);
-MyFMClipBoard *myfm_clipboard_copy          (MyFMClipBoard *self);
 MyFMClipBoard *myfm_clipboard_new           (void);
 void          myfm_clipboard_add_to_copied  (MyFMClipBoard *self, MyFMFile **files, gint n_files);
 void          myfm_clipboard_add_to_cut     (MyFMClipBoard *self, MyFMFile **files, gint n_files);
