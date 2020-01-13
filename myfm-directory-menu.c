@@ -25,7 +25,35 @@ myfm_directory_menu_get_window (MyFMDirectoryMenu *self)
 }
 
 static void
-myfm_directory_menu_on_paste_activate (GtkMenu *item,
+new_file (MyFMDirectoryMenu *self,
+          GFileType type)
+{
+    MyFMFile *dir;
+    GtkWindow *win;
+
+    dir = myfm_directory_view_get_directory (MYFM_DIRECTORY_MENU (self)->dirview);
+    win = GTK_WINDOW (myfm_directory_menu_get_window (self));
+
+    myfm_file_operations_create_async (type, dir, win, NULL, NULL);
+
+}
+
+static void
+myfm_directory_menu_on_new_empty_file (GtkMenuItem *item,
+                                       gpointer self)
+{
+    new_file (self, G_FILE_TYPE_REGULAR);
+}
+
+static void
+myfm_directory_menu_on_new_dir (GtkMenuItem *item,
+                                gpointer self)
+{
+    new_file (self, G_FILE_TYPE_DIRECTORY);
+}
+
+static void
+myfm_directory_menu_on_paste_activate (GtkMenuItem *item,
                                        gpointer self)
 {
     GtkApplication *app;
@@ -98,7 +126,7 @@ on_sort_by_date_activate (GtkMenuItem *item, gpointer dirview)
 
 /* terrible naming. sets up the submenu for the "new" button */
 static GtkWidget *
-new_submenu_for_new (void)
+myfm_directory_menu_new_submenu_for_new (MyFMDirectoryMenu *self)
 {
     GtkWidget *submenu;
     GtkWidget *new_file;
@@ -110,6 +138,15 @@ new_submenu_for_new (void)
 
     gtk_menu_shell_append (GTK_MENU_SHELL (submenu), new_directory);
     gtk_menu_shell_append (GTK_MENU_SHELL (submenu), new_file);
+
+    g_signal_connect (GTK_MENU_ITEM (new_file), "activate",
+                      myfm_directory_menu_on_new_empty_file,
+                      self);
+
+    g_signal_connect (GTK_MENU_ITEM (new_directory), "activate",
+                      myfm_directory_menu_on_new_dir,
+                      self);
+
     gtk_widget_show (new_directory);
     gtk_widget_show (new_file);
 
@@ -163,14 +200,14 @@ myfm_directory_menu_fill (MyFMDirectoryMenu *self)
     GtkApplication *app;
     MyFMClipBoard *cboard;
 
-    app = gtk_window_get_application (GTK_WINDOW (gtk_widget_get_toplevel (GTK_WIDGET (self))));
     new_item = myfm_utils_new_menu_item ("New...", 0, 0);
-    new_submenu = new_submenu_for_new ();
+    new_submenu = myfm_directory_menu_new_submenu_for_new (self);
     gtk_menu_item_set_submenu (GTK_MENU_ITEM (new_item), new_submenu);
     gtk_menu_shell_append (GTK_MENU_SHELL (self), new_item);
     gtk_widget_show (new_item);
 
     paste_item = myfm_utils_new_menu_item ("Paste", 0, 0);
+    app = gtk_window_get_application (GTK_WINDOW (myfm_directory_menu_get_window (self)));
     cboard = myfm_application_get_file_clipboard (MYFM_APPLICATION (app));
     gtk_menu_shell_append (GTK_MENU_SHELL (self), paste_item);
 

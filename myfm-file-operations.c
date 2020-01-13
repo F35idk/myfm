@@ -105,8 +105,8 @@ _run_fatal_err_dialog (GTask *operation,
  * to user callback through this */
 static void
 operation_finished_callback (GObject* src_object,
-                           GAsyncResult *res,
-                           gpointer _cb)
+                             GAsyncResult *res,
+                             gpointer _cb)
 {
     MyFMFileOpCallback cb;
     GCancellable *cancellable;
@@ -246,4 +246,28 @@ myfm_file_operations_delete_async (MyFMFile **src_files, gint n_files,
     del = new_file_op_task (arr, active, cb, data);
 
     g_task_run_in_thread (del, _delete_files_thread);
+}
+
+void
+myfm_file_operations_create_async (GFileType type,
+                                   MyFMFile *dest_dir,
+                                   GtkWindow *active,
+                                   MyFMFileOpCallback cb,
+                                   gpointer data)
+{
+    GFile *g_dest_dir;
+    gchar *dest_dir_path;
+    GFile *new;
+
+    g_dest_dir = myfm_file_get_g_file (dest_dir);
+    dest_dir_path = g_file_get_path (g_dest_dir);
+    if (type != G_FILE_TYPE_DIRECTORY)
+        new = g_file_new_build_filename (dest_dir_path,
+                                         "new file", NULL);
+    else
+        new = g_file_new_build_filename (dest_dir_path,
+                                         "new directory", NULL);
+
+    g_free (dest_dir_path);
+    _create_file_async (type, new, active, cb, data);
 }

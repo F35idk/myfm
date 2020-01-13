@@ -59,5 +59,7 @@ void               _move_files_thread    (GTask *task, gpointer src_object,
 void               _delete_files_thread  (GTask *task, gpointer src_object,
                                           gpointer task_data, GCancellable *cancellable);
 void               _delete_file_single   (GFile *file, GCancellable *cancellable, GError **error);
+void               _create_file_async    (GFileType type, GFile *new, GtkWindow *active,
+                                          gpointer cb, gpointer data);
 
 #endif /* __MYFM_FILE_OPERATIONS_PRIVATE_H */

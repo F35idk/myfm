@@ -20,5 +20,8 @@ void myfm_file_operations_move_async   (MyFMFile **src_files, gint n_files,
 void myfm_file_operations_copy_async   (MyFMFile **src_files, gint n_files,
                                         MyFMFile *dest_dir, GtkWindow *active,
                                         MyFMFileOpCallback cb, gpointer data);
+void myfm_file_operations_create_async (GFileType type, MyFMFile *dest_dir,
+                                        GtkWindow *active, MyFMFileOpCallback cb,
+                                        gpointer data);
 
 #endif /* __MYFM_FILE_OPERATIONS__H */
