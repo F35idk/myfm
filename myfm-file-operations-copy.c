@@ -178,10 +178,8 @@ copy_dir_recursive (GTask *cp,
     MyFMDialogResponse error_response;
     GError *error = NULL;
     GCancellable *cancellable;
-    GtkWindow *win;
 
     cancellable = g_task_get_cancellable (cp);
-    win = g_object_get_data (G_OBJECT (cp), "win");
 
     g_file_make_directory (dest, cancellable, &error);
 

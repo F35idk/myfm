@@ -158,14 +158,15 @@ myfm_window_open_file_async (MyFMWindow *self, MyFMFile *file,
         myfm_window_open_dir_async (self, file, dirview_index);
 }
 
-/* function for closing any open directory view (and thus all directory
- * views to the right of it in the window as well). make sure to pass
- * valid directory views into this - the function itself does no checking */
+/* function for closing any open directory view (and thus all
+ * directory views to the right of it in the window as well) */
 void
 myfm_window_close_directory_view (MyFMWindow *self, MyFMDirectoryView *dirview)
 {
     gint index;
     GList *element;
+
+    g_return_if_fail (dirview != NULL);
 
     index = myfm_window_get_directory_view_index (self, dirview); /* get index before view is removed */
     element = g_list_find (self->directory_views, dirview);

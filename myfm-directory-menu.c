@@ -35,7 +35,6 @@ new_file (MyFMDirectoryMenu *self,
     win = GTK_WINDOW (myfm_directory_menu_get_window (self));
 
     myfm_file_operations_create_async (type, dir, win, NULL, NULL);
-
 }
 
 static void

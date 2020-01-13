@@ -12,8 +12,8 @@
 
 static void
 create_dir_callback (GObject* src_object,
-                  GAsyncResult *res,
-                  gpointer _cb)
+                     GAsyncResult *res,
+                     gpointer _cb)
 {
     GError *error = NULL;
     MyFMFileOpCallback cb;
@@ -45,7 +45,6 @@ create_dir_callback (GObject* src_object,
     }
 
     g_object_unref (src_object);
-
 }
 
 static void
@@ -104,6 +103,5 @@ _create_file_async (GFileType type, GFile *new,
     else {
         g_file_make_directory_async (new, G_PRIORITY_DEFAULT,
                                      NULL, create_dir_callback, cb);
-
     }
 }

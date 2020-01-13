@@ -11,10 +11,9 @@
 #include "myfm-directory-view.h"
 
 /* context menu that appears when right-clicking myfm-directory-views */
-/* TODO: implement this */
 
 #define MYFM_TYPE_DIRECTORY_MENU (myfm_directory_menu_get_type ())
-G_DECLARE_FINAL_TYPE           (MyFMDirectoryMenu, myfm_directory_menu, MYFM, DIRECTORY_MENU, GtkMenu)
+G_DECLARE_FINAL_TYPE             (MyFMDirectoryMenu, myfm_directory_menu, MYFM, DIRECTORY_MENU, GtkMenu)
 
 GtkWidget *myfm_directory_menu_new (MyFMDirectoryView *dirview);
 

@@ -37,10 +37,10 @@ myfm_application_activate (GApplication *app)
 {
     MyFMWindow *win;
     MyFMFile *home;
+    const gchar *home_dir;
 
-    /* should default to home directory, currently
-     * that's just my home though */
-    home = myfm_file_from_path ("/home/f35/");
+    home_dir = g_get_home_dir ();
+    home = myfm_file_from_path (home_dir);
     win = myfm_window_new (MYFM_APPLICATION (app));
     myfm_window_open_file_async (win, home, -1);
 
@@ -55,9 +55,7 @@ myfm_application_open (GApplication *app, GFile **files,
 {
     for (int i = 0; i < n_files; i++) {
         MyFMWindow *win = myfm_window_new (MYFM_APPLICATION (app));
-        /* normally we would ref the g_files here, since they're
-         * freed when myfm_app_open exits. but myfm_file_from_g_file ()
-         * takes care of that for us, so there's no need */
+        /* myfm_file_from_g_file () takes ownership of the g_files */
         MyFMFile *myfm_file = myfm_file_from_g_file (files[i]);
         myfm_window_open_file_async (win, myfm_file, -1);
         myfm_file_unref (myfm_file);
@@ -89,7 +87,7 @@ static void
 myfm_application_init (MyFMApplication *self)
 {
     /* FIXME: turns out this is deprecated. but it saves us
-     * a ton of slowness and complexity, so.. */
+     * a ton of complexity, so.. */
     /* TODO: instead of doing this, implement an entire
      * gtk_icon_theme when this is needed in the future */
     self->icon_size = gtk_icon_size_register ("default_icon_size", 20, 20);

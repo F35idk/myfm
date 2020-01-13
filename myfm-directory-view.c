@@ -331,6 +331,7 @@ myfm_directory_view_file_to_store_callback (MyFMFile *myfm_file, GFile *old_g_fi
     GtkListStore *store;
 
     store = GTK_LIST_STORE (gtk_tree_view_get_model (GTK_TREE_VIEW (self)));
+    /* FIXME: check if file hidden before appending */
     gtk_list_store_append (GTK_LIST_STORE (store), &iter);
     gtk_list_store_set (GTK_LIST_STORE (store), &iter, 0, myfm_file, -1);
 }
