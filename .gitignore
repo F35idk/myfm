@@ -7,7 +7,6 @@ trash/
 CMakeLists.txt
 CMakeLists.txt.user
 compile_commands.json
-gtk.supp
+*.supp
 myfm
 vgdump*
-

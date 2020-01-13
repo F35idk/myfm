@@ -6,7 +6,7 @@
 #include <gio/gio.h>
 
 #include "myfm-application.h"
-#include "myfm-window.h"
+#include "widgets/myfm-window.h"
 #include "myfm-clipboard.h"
 #include "myfm-file.h"
 #define G_LOG_DOMAIN "myfm-application"
@@ -91,6 +91,7 @@ myfm_application_init (MyFMApplication *self)
     /* TODO: instead of doing this, implement an entire
      * gtk_icon_theme when this is needed in the future */
     self->icon_size = gtk_icon_size_register ("default_icon_size", 20, 20);
+    self->icon_size = GTK_ICON_SIZE_SMALL_TOOLBAR;
     self->file_clipboard = myfm_clipboard_new ();
 }
 

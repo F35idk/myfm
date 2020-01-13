@@ -5,27 +5,6 @@ project ('com.github.f35idk.myfm', 'c',
 gtk_dep = dependency ('gtk+-3.0') # require version
 gio_dep = dependency ('gio-2.0') # require version
 glib_dep = dependency ('glib-2.0') # require version
-# TODO: add cairo_dep
 
-executable (meson.project_name (),
-            'myfm-main.c',
-            'myfm-application.c',
-            'myfm-window.c',
-            'myfm-directory-view.c',
-            'myfm-file.c',
-            'myfm-multi-paned.c',
-            'myfm-file-menu.c',
-            'myfm-directory-menu.c',
-            'myfm-utils.c',
-            'myfm-clipboard.c',
-            'myfm-file-operations.c',
-            'myfm-file-operations-move.c',
-            'myfm-file-operations-copy.c',
-            'myfm-file-operations-delete.c',
-            'myfm-file-operations-create.c',
-            'myfm-icon-renderer.c',
-            dependencies : [gtk_dep,
-                            gio_dep,
-                            glib_dep],
-            install: true,
-)
+subdir ('src')
+subdir ('data')

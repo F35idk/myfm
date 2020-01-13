@@ -7,7 +7,7 @@
 
 #include <gtk/gtk.h>
 
-#include "myfm-window.h"
+#include "widgets/myfm-window.h"
 
 typedef void (*GFileForEachFunc) (GFile *, GFileInfo *,
                                   gboolean, GError *,

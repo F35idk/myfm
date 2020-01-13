@@ -5,7 +5,7 @@
 #include <stdarg.h>
 #include <gtk/gtk.h>
 
-#include "myfm-window.h"
+#include "widgets/myfm-window.h"
 #include "myfm-utils.h"
 #define G_LOG_DOMAIN "myfm-utils"
 

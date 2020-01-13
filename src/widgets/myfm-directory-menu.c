@@ -139,11 +139,11 @@ myfm_directory_menu_new_submenu_for_new (MyFMDirectoryMenu *self)
     gtk_menu_shell_append (GTK_MENU_SHELL (submenu), new_file);
 
     g_signal_connect (GTK_MENU_ITEM (new_file), "activate",
-                      myfm_directory_menu_on_new_empty_file,
+                      G_CALLBACK (myfm_directory_menu_on_new_empty_file),
                       self);
 
     g_signal_connect (GTK_MENU_ITEM (new_directory), "activate",
-                      myfm_directory_menu_on_new_dir,
+                      G_CALLBACK (myfm_directory_menu_on_new_dir),
                       self);
 
     gtk_widget_show (new_directory);
@@ -159,7 +159,7 @@ setup_sort_subitem (GtkWidget *submenu, GtkWidget *subitem,
     gtk_menu_shell_append (GTK_MENU_SHELL (submenu), subitem);
     gtk_widget_show (subitem);
     g_signal_connect (GTK_MENU_ITEM (subitem), "activate",
-                      activate_handler, dirview);
+                      G_CALLBACK (activate_handler), dirview);
 }
 
 static GtkWidget *
@@ -217,7 +217,8 @@ myfm_directory_menu_fill (MyFMDirectoryMenu *self)
 
     gtk_widget_show (paste_item);
     g_signal_connect (GTK_MENU_ITEM (paste_item), "activate",
-                      myfm_directory_menu_on_paste_activate, self);
+                      G_CALLBACK (myfm_directory_menu_on_paste_activate),
+                      self);
 
     sort_item = myfm_utils_new_menu_item ("Sort files by...", 0, 0);
     sort_submenu = myfm_directory_menu_new_submenu_for_sort (self);

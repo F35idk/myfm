@@ -6,7 +6,7 @@
 #include <gio/gio.h>
 
 #include "myfm-file.h"
-#include "myfm-window.h"
+#include "widgets/myfm-window.h"
 #include "myfm-clipboard.h"
 #define G_LOG_DOMAIN "myfm-clipboard"
 

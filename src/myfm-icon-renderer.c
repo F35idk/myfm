@@ -3,7 +3,6 @@
 */
 
 #include <gtk/gtk.h>
-#include <cairo/cairo.h>
 
 #include "myfm-icon-renderer.h"
 

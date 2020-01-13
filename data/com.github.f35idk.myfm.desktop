@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=myfm
+Comment=my file manager
+Categories=Utility;
+Exec=com.github.f35idk.myfm
+Icon=folder
+Terminal=false
+Type=Application
+Keywords=Files;File;Manager;
