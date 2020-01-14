@@ -76,7 +76,14 @@ myfm_file_menu_on_item_activate (GtkMenuItem *item,
                                            NULL, NULL);
     }
     else if (!strcmp (label, "Open in New Window")) {
-        /* FIXME: implement */
+        GtkApplication *app;
+        MyFMWindow *new_win;
+
+        app = gtk_window_get_application (GTK_WINDOW (myfm_file_menu_get_window (self)));
+        new_win = myfm_window_new (MYFM_APPLICATION (app));
+
+        myfm_window_open_file_async (new_win, self->file, -1);
+        gtk_window_present (GTK_WINDOW (new_win));
     }
 }
 
