@@ -28,8 +28,8 @@ struct _MyFMWindow {
 
 G_DEFINE_TYPE (MyFMWindow, myfm_window, GTK_TYPE_APPLICATION_WINDOW)
 
-static const gint default_height = 550;
-static const gint default_width = 890;
+static const gint default_height = 400;
+static const gint default_width = 680;
 
 static void
 mpaned_scroll_left_callback (MyFMMultiPaned *mpaned, gdouble scroll_dest,
