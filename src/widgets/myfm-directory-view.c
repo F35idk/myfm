@@ -637,7 +637,6 @@ myfm_directory_view_setup_files_column (MyFMDirectoryView *self)
 
     col = gtk_tree_view_column_new ();
 
-    // renderer = gtk_cell_renderer_pixbuf_new ();
     renderer = myfm_icon_renderer_new ();
     gtk_tree_view_column_pack_start (col, renderer, FALSE);
     gtk_tree_view_column_set_attributes (col, renderer, NULL);

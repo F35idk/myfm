@@ -178,7 +178,7 @@ myfm_file_new_without_io_fields (GFile *g_file)
     myfm_file->priv->cancellable = g_cancellable_new ();
     /* ensure cancellable is unref'd after cancellation */
     g_signal_connect (myfm_file->priv->cancellable, "cancelled",
-                      g_object_unref, NULL);
+                      G_CALLBACK (g_object_unref), NULL);
 
     /* set IO-dependant fields to NULL */
     myfm_file->priv->IO_g_icon = NULL;
@@ -287,7 +287,7 @@ myfm_file_set_display_name_callback (GObject *g_file, GAsyncResult *res,
     GError *error = NULL;
     struct callback_data* cb_data;
 
-    new_g_file = g_file_set_display_name_finish (G_OBJECT (g_file),
+    new_g_file = g_file_set_display_name_finish (G_FILE (g_file),
                                                  res, &error);
     cb_data = (struct callback_data *) callback_data;
 
