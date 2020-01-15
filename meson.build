@@ -3,7 +3,7 @@ project ('com.github.f35idk.myfm', 'c',
 )
 
 gtk_dep = dependency ('gtk+-3.0') # require version
-gio_dep = dependency ('gio-2.0') # require version
+gio_dep = dependency ('gio-2.0', version : '>=2.62')
 glib_dep = dependency ('glib-2.0') # require version
 
 subdir ('src')

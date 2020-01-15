@@ -14,11 +14,8 @@ delete, cut, create, sort and some others are supported at the moment.
 myfm has the following build dependencies (you most likely have these already):
  - `gtk+-3.0`
  - `glib-2.0`
- - `gio-2.0`
+ - `gio-2.0 >= 2.62`
  - `meson`
-
-Version requirements aren't specified. Anything remotely recent should work as
-I've made a deliberate choice to avoid using cutting edge library features. 
 
 Run `meson build` and then `ninja` to build:
 ```bash
