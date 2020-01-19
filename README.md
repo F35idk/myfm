@@ -1,5 +1,5 @@
 # myfm
-### My personal file manager
+### My Personal File Manager
 ![screenshot](images/myfm.png)
 
  A simple column-view file manager based on gtk and gio, written in C.

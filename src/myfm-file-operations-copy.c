@@ -362,21 +362,21 @@ _copy_files_thread (GTask *task,
 
     /* last struct element has g_file = NULL */
     struct _file_w_type *current;
-    for (current = arr + 1; (*current).g_file; current++) {
+    for (current = arr + 1; current->g_file; current++) {
         gchar *src_basename;
         GFile *dest;
 
-        src_basename = g_file_get_basename ((*current).g_file);
+        src_basename = g_file_get_basename (current->g_file);
         dest = g_file_new_build_filename (dest_dir_path,
                                           src_basename,
                                           NULL);
         g_free (src_basename);
 
-        if ((*current).type == G_FILE_TYPE_DIRECTORY)
-            copy_dir_recursive (task, (*current).g_file,
+        if (current->type == G_FILE_TYPE_DIRECTORY)
+            copy_dir_recursive (task, current->g_file,
                                 dest, FALSE, FALSE, &flags);
         else
-            copy_file_single (task, (*current).g_file,
+            copy_file_single (task, current->g_file,
                               dest, FALSE, FALSE, &flags);
     }
     g_free (dest_dir_path);
